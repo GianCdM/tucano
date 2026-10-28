@@ -454,6 +454,21 @@ footer a:hover { color: #EDE7DA; }
   .hero h1 .swoosh svg path { stroke-dashoffset: 0; }
 }
 </style>
+<!-- Analytics (PostHog), only on tucano.sh. Nothing is stored in the visitor's browser
+     (persistence: memory): no cookies, so no cookie banner. -->
+<script>
+if (/(^|\.)tucano\.sh$/.test(location.hostname)) {
+  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  posthog.init('phc_ojE2QD5BSKXd4bSAExc6YMrcGrL7LEwwyvAGktkXFFBE', {
+    api_host: 'https://us.i.posthog.com',
+    persistence: 'memory',
+    person_profiles: 'identified_only',
+    capture_pageview: true,
+    capture_pageleave: true,
+    session_recording: { maskAllInputs: true }
+  })
+}
+</script>
 </head>
 <body>
 
@@ -1049,6 +1064,39 @@ new IntersectionObserver((es, o) => es.forEach((e) => e.isIntersecting && (ttyTy
 relabel.push(() => ttyTyped && typeTty(true))
 
 setLang(LANG)
+</script>
+<script>
+// What visitors do here, for analytics (see the PostHog snippet in <head>). No-op off tucano.sh.
+(() => {
+  if (!window.posthog) return
+  // posthog.js swaps window.posthog for the real client once it loads: look it up on every call.
+  const ph = { capture: (...a) => window.posthog.capture(...a), register: (...a) => window.posthog.register(...a) }
+  const names = { 'ao-vivo': 'live', faz: 'what_it_does', regras: 'rules', motores: 'engines', tuca: 'tuca', instalar: 'install', perguntas: 'faq' }
+  const sectionName = (sec) => { const id = sec.id || sec.className.split(' ')[0]; return names[id] || id }
+  const where = (el) => (el.closest('header') ? 'header' : el.closest('section') ? sectionName(el.closest('section')) : 'page')
+  ph.register({ site_lang: document.documentElement.lang })
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('a, button, summary')
+    if (!el) return
+    if (el.matches('a[href*="tucano-mac-arm64.dmg"]')) ph.capture('download_clicked', { location: where(el) })
+    else if (el.matches('.copy')) ph.capture('install_command_copied', { location: where(el) })
+    else if (el.matches('a[href^="https://github.com/eduwxyz/tucano"]')) ph.capture('github_clicked', { location: where(el) })
+    else if (el.matches('.lang button')) {
+      ph.capture('language_changed', { to: el.dataset.set })
+      ph.register({ site_lang: el.dataset.set })
+    } else if (el.matches('.faq summary') && !el.parentElement.open) ph.capture('faq_opened', { question: el.textContent.trim().slice(0, 120) })
+  }, true)
+  // Each section once per visit, when it has held the middle of the screen for a moment.
+  const timers = new Map()
+  const io = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      const id = sectionName(en.target)
+      if (en.isIntersecting) timers.set(id, setTimeout(() => { ph.capture('section_viewed', { section: id }); io.unobserve(en.target) }, 1500))
+      else clearTimeout(timers.get(id))
+    }
+  }, { rootMargin: '-45% 0px -45% 0px' })
+  document.querySelectorAll('main > section, section.end').forEach((s) => io.observe(s))
+})()
 </script>
 </body>
 </html>
