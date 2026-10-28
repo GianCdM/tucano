@@ -3,7 +3,7 @@
 // (~/.codex/skills). The app reads them, never runs them: the user links one to
 // agents, and an agent reads it with ler_skill, straight from the file, so an
 // edit in Claude Code counts from the next read.
-import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, join, relative, sep } from 'node:path'
 import { L } from '../shared/lang'
@@ -98,7 +98,31 @@ function pluginSkills(claude: string): LocalSkill[] {
     const [plugin, market] = key.split('@')
     if (!plugin || !market) return []
     const versions = dirs(join(claude, 'plugins', 'cache', market, plugin)).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)
-    return versions[0] ? inDirs(join(versions[0], 'skills'), `Plugin ${plugin}`) : []
+    if (!versions[0]) return []
+    const root = realpathSync(versions[0])
+    // The manifest's "skills" (a path or a list) adds folders to the skills/ scan: each one holds
+    // <name>/SKILL.md folders or a SKILL.md itself ("./" is the root). Like Claude Code, a path
+    // that leaves the plugin is ignored. With no skills/ and no "skills", a root SKILL.md is the skill.
+    let declared: unknown
+    try {
+      declared = (JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8')) as { skills?: unknown }).skills
+    } catch {
+      // no manifest: the default layout
+    }
+    const extra = (Array.isArray(declared) ? declared : [declared]).filter((p): p is string => typeof p === 'string')
+    const folders = ['skills', ...extra, ...(extra.length === 0 && !existsSync(join(root, 'skills')) ? ['.'] : [])]
+    const seen = new Set<string>()
+    return folders.flatMap((p) => {
+      let dir: string
+      try {
+        dir = realpathSync(join(root, p))
+      } catch {
+        return []
+      }
+      if (dir !== root && !dir.startsWith(root + sep)) return []
+      const found = existsSync(join(dir, 'SKILL.md')) ? [skill(join(dir, 'SKILL.md'), `Plugin ${plugin}`)].filter((s): s is LocalSkill => !!s) : inDirs(dir, `Plugin ${plugin}`)
+      return found.filter((s) => !seen.has(s.source) && !!seen.add(s.source))
+    })
   })
 }
 

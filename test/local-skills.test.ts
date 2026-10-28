@@ -21,9 +21,12 @@ beforeEach(() => {
   put(join(home, '.claude/skills/video/SKILL.md'), '---\nname: video\ndescription: |\n  Cria os vídeos do canal.\n  Use pra "novo vídeo".\n---\n# Vídeos\nLeia estilo.md antes.')
   put(join(home, '.claude/skills/video/estilo.md'), 'Quadro de marcador.')
   put(join(home, '.claude/skills/video/motor/build.py'), 'print(1)')
-  put(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'sdd@mkt': true, 'off@mkt': false }, hooks: { Stop: [] } }))
+  put(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'sdd@mkt': true, 'root@mkt': true, 'off@mkt': false }, hooks: { Stop: [] } }))
   put(join(home, '.claude/plugins/cache/mkt/sdd/1.0.0/skills/verify/SKILL.md'), '---\nname: verify\ndescription: "Confere a entrega"\n---\nPassos.')
   put(join(home, '.claude/plugins/cache/mkt/off/1.0.0/skills/hidden/SKILL.md'), '---\nname: hidden\n---\n')
+  // A plugin whose skill is the root itself, as "skills": ["./"] declares in the manifest.
+  put(join(home, '.claude/plugins/cache/mkt/root/1.0.0/SKILL.md'), '---\nname: humanize\ndescription: "Remove AI tells"\n---\nReceita.')
+  put(join(home, '.claude/plugins/cache/mkt/root/1.0.0/.claude-plugin/plugin.json'), JSON.stringify({ name: 'root', version: '1.0.0', skills: ['./'] }))
   put(join(home, '.codex/skills/imediato/SKILL.md'), '---\nname: imediato\ndescription: Responde já\n---\nCorpo.')
   put(join(home, 'secret.md'), 'segredo')
   symlinkSync(join(home, 'secret.md'), join(home, '.claude/skills/video/fuga.md'))
@@ -36,7 +39,7 @@ describe('local skills', () => {
 
   it("finds the user's Claude Code skills, the turned-on plugins' and Codex's, with their files and scripts", () => {
     const found = findLocalSkills(home)
-    expect(found.map((k) => [k.name, k.origin])).toEqual([['video', 'Claude Code'], ['verify', 'Plugin sdd'], ['imediato', 'Codex']])
+    expect(found.map((k) => [k.name, k.origin])).toEqual([['video', 'Claude Code'], ['verify', 'Plugin sdd'], ['humanize', 'Plugin root'], ['imediato', 'Codex']])
     const video = found[0]!
     expect(video.description).toBe('Cria os vídeos do canal. Use pra "novo vídeo".')
     expect(video.files).toEqual(['estilo.md', 'fuga.md'])
@@ -67,5 +70,38 @@ describe('local skills', () => {
     expect(skills.read(a, { nome: 'video', arquivo: 'estilo.md' }).reply).toContain('Quadro de marcador.')
     expect(skills.propose(a, { nome: 'video', quando_usar: 'x', receita: 'y' })).toMatchObject({ error: true })
     expect(skills.save({ id: k.id, name: 'outro', description: '', body: '', agents: ['a1'] })).toMatchObject({ name: 'video', agents: ['a1'], source })
+  })
+})
+
+// One turned-on plugin, laid out as each case needs, following Claude Code's manifest rules.
+describe('plugin skills declared in the manifest', () => {
+  const plugin = (manifest: object | null, files: Record<string, string>): string => {
+    const root = join(home, '.claude/plugins/cache/mkt/p/1.0.0')
+    put(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'p@mkt': true } }))
+    if (manifest) put(join(root, '.claude-plugin/plugin.json'), JSON.stringify(manifest))
+    for (const [file, text] of Object.entries(files)) put(join(root, file), text)
+    return root
+  }
+  const names = (): string[] => findLocalSkills(home).filter((k) => k.origin === 'Plugin p').map((k) => k.name).sort()
+
+  it('adds the declared folders to the skills/ scan', () => {
+    plugin({ name: 'p', skills: ['./extra/'] }, { 'skills/a/SKILL.md': '---\nname: a\n---\n', 'extra/b/SKILL.md': '---\nname: b\n---\n' })
+    expect(names()).toEqual(['a', 'b'])
+  })
+
+  it('takes a single path as well as a list', () => {
+    plugin({ name: 'p', skills: './' }, { 'SKILL.md': '---\nname: root\n---\n' })
+    expect(names()).toEqual(['root'])
+  })
+
+  it('reads a root SKILL.md as the skill when there is no skills/ and no manifest', () => {
+    plugin(null, { 'SKILL.md': '---\nname: root\n---\n' })
+    expect(names()).toEqual(['root'])
+  })
+
+  it('ignores a declared path that leaves the plugin', () => {
+    plugin({ name: 'p', skills: ['../../../../../../'] }, {})
+    put(join(home, 'SKILL.md'), '---\nname: fora\n---\n')
+    expect(names()).toEqual([])
   })
 })
