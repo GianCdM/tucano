@@ -72,3 +72,36 @@ describe('local skills', () => {
     expect(skills.save({ id: k.id, name: 'outro', description: '', body: '', agents: ['a1'] })).toMatchObject({ name: 'video', agents: ['a1'], source })
   })
 })
+
+// One turned-on plugin, laid out as each case needs, following Claude Code's manifest rules.
+describe('plugin skills declared in the manifest', () => {
+  const plugin = (manifest: object | null, files: Record<string, string>): string => {
+    const root = join(home, '.claude/plugins/cache/mkt/p/1.0.0')
+    put(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'p@mkt': true } }))
+    if (manifest) put(join(root, '.claude-plugin/plugin.json'), JSON.stringify(manifest))
+    for (const [file, text] of Object.entries(files)) put(join(root, file), text)
+    return root
+  }
+  const names = (): string[] => findLocalSkills(home).filter((k) => k.origin === 'Plugin p').map((k) => k.name).sort()
+
+  it('adds the declared folders to the skills/ scan', () => {
+    plugin({ name: 'p', skills: ['./extra/'] }, { 'skills/a/SKILL.md': '---\nname: a\n---\n', 'extra/b/SKILL.md': '---\nname: b\n---\n' })
+    expect(names()).toEqual(['a', 'b'])
+  })
+
+  it('takes a single path as well as a list', () => {
+    plugin({ name: 'p', skills: './' }, { 'SKILL.md': '---\nname: root\n---\n' })
+    expect(names()).toEqual(['root'])
+  })
+
+  it('reads a root SKILL.md as the skill when there is no skills/ and no manifest', () => {
+    plugin(null, { 'SKILL.md': '---\nname: root\n---\n' })
+    expect(names()).toEqual(['root'])
+  })
+
+  it('ignores a declared path that leaves the plugin', () => {
+    plugin({ name: 'p', skills: ['../../../../../../'] }, {})
+    put(join(home, 'SKILL.md'), '---\nname: fora\n---\n')
+    expect(names()).toEqual([])
+  })
+})

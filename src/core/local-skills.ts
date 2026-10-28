@@ -99,31 +99,30 @@ function pluginSkills(claude: string): LocalSkill[] {
     if (!plugin || !market) return []
     const versions = dirs(join(claude, 'plugins', 'cache', market, plugin)).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)
     if (!versions[0]) return []
-    // A plugin declares its skills in .claude-plugin/plugin.json ("skills": ["./"] points at
-    // the root); without a manifest, skills live under skills/<name>/SKILL.md.
-    const root = versions[0]
-    let paths: string[] | undefined
+    const root = realpathSync(versions[0])
+    // The manifest's "skills" (a path or a list) adds folders to the skills/ scan: each one holds
+    // <name>/SKILL.md folders or a SKILL.md itself ("./" is the root). Like Claude Code, a path
+    // that leaves the plugin is ignored. With no skills/ and no "skills", a root SKILL.md is the skill.
+    let declared: unknown
     try {
-      const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8')) as { skills?: string[] }
-      paths = Array.isArray(manifest.skills) ? manifest.skills : undefined
+      declared = (JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8')) as { skills?: unknown }).skills
     } catch {
-      // no manifest: fall through to the default layout
+      // no manifest: the default layout
     }
-    const listed = (paths ?? ['skills'])
-      .flatMap((p) => {
-        const resolved = join(root, p)
-        try {
-          // A path is a skill file itself, a folder holding one SKILL.md ("./" points at the
-          // plugin root), or a folder of skill folders; anything else is the default layout.
-          if (!statSync(resolved).isDirectory()) return [skill(resolved, `Plugin ${plugin}`)].filter((s): s is LocalSkill => !!s)
-          if (existsSync(join(resolved, 'SKILL.md'))) return [skill(join(resolved, 'SKILL.md'), `Plugin ${plugin}`)].filter((s): s is LocalSkill => !!s)
-          return inDirs(resolved, `Plugin ${plugin}`)
-        } catch {
-          return []
-        }
-      })
-      .filter((s) => !s.name.startsWith('.'))
-    return listed.length > 0 ? listed : inDirs(join(root, 'skills'), `Plugin ${plugin}`)
+    const extra = (Array.isArray(declared) ? declared : [declared]).filter((p): p is string => typeof p === 'string')
+    const folders = ['skills', ...extra, ...(extra.length === 0 && !existsSync(join(root, 'skills')) ? ['.'] : [])]
+    const seen = new Set<string>()
+    return folders.flatMap((p) => {
+      let dir: string
+      try {
+        dir = realpathSync(join(root, p))
+      } catch {
+        return []
+      }
+      if (dir !== root && !dir.startsWith(root + sep)) return []
+      const found = existsSync(join(dir, 'SKILL.md')) ? [skill(join(dir, 'SKILL.md'), `Plugin ${plugin}`)].filter((s): s is LocalSkill => !!s) : inDirs(dir, `Plugin ${plugin}`)
+      return found.filter((s) => !seen.has(s.source) && !!seen.add(s.source))
+    })
   })
 }
 
