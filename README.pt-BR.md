@@ -16,11 +16,7 @@ Eles fazem o trabalho. O que mexe no mundo espera o seu sim.
 
 [English](README.md) · **Português** · [tucano.sh](https://tucano.sh)
 
-<a href="https://github.com/eduwxyz/tucano/releases/download/v0.1.0/tucano-pt.mp4">
-  <img src="docs/media/tucano-preview-pt.webp" width="880" alt="O Tucano em 90 segundos: um erro em produção vai do agente que olha o Datadog pro que corrige no GitLab e pro que revisa, e o merge espera a sua aprovação">
-</a>
-
-<sub>▶ <a href="https://github.com/eduwxyz/tucano/releases/download/v0.1.0/tucano-pt.mp4">Assista ao tour completo de 90 segundos</a></sub>
+https://github.com/user-attachments/assets/0451d858-2f65-4d72-8913-f11a5d88fbad
 
 </div>
 

@@ -16,11 +16,7 @@ They do the work. Anything that touches the real world waits for your yes.
 
 **English** · [Português](README.pt-BR.md) · [tucano.sh](https://tucano.sh)
 
-<a href="https://github.com/eduwxyz/tucano/releases/download/v0.1.0/tucano.mp4">
-  <img src="docs/media/tucano-preview.webp" width="880" alt="Tucano in 90 seconds: an error in production goes from the agent that reads Datadog to the one that fixes it in GitLab to the one that reviews it, and the merge waits for your approval">
-</a>
-
-<sub>▶ <a href="https://github.com/eduwxyz/tucano/releases/download/v0.1.0/tucano.mp4">Watch the full 90-second tour</a></sub>
+https://github.com/user-attachments/assets/533e1bf1-b4ca-4f4a-aad4-e015c6b4c421
 
 </div>
 
