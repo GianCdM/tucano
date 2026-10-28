@@ -1,0 +1,68 @@
+{
+  "name": "tucano",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tucano: your team of AI agents on your Mac, with scopes, approvals and budgets.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "dist": "sh scripts/dist.sh",
+    "install-app": "npm run dist && sh scripts/install-app.sh",
+    "release": "sh scripts/release.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^44.8.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^6.0.0",
+    "playwright": "^1.64.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^4.1.12"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "gsap": "^3.14.2",
+    "smol-toml": "^1.9.1"
+  },
+  "build": {
+    "appId": "dev.tucano.app",
+    "productName": "Tucano",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "hardenedRuntime": false
+    },
+    "extraResources": [
+      {
+        "from": "build/sounds",
+        "to": "sounds"
+      }
+    ]
+  }
+}
