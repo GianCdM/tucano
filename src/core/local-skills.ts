@@ -3,7 +3,7 @@
 // (~/.codex/skills). The app reads them, never runs them: the user links one to
 // agents, and an agent reads it with ler_skill, straight from the file, so an
 // edit in Claude Code counts from the next read.
-import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, join, relative, sep } from 'node:path'
 import { L } from '../shared/lang'
@@ -98,7 +98,32 @@ function pluginSkills(claude: string): LocalSkill[] {
     const [plugin, market] = key.split('@')
     if (!plugin || !market) return []
     const versions = dirs(join(claude, 'plugins', 'cache', market, plugin)).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)
-    return versions[0] ? inDirs(join(versions[0], 'skills'), `Plugin ${plugin}`) : []
+    if (!versions[0]) return []
+    // A plugin declares its skills in .claude-plugin/plugin.json ("skills": ["./"] points at
+    // the root); without a manifest, skills live under skills/<name>/SKILL.md.
+    const root = versions[0]
+    let paths: string[] | undefined
+    try {
+      const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8')) as { skills?: string[] }
+      paths = Array.isArray(manifest.skills) ? manifest.skills : undefined
+    } catch {
+      // no manifest: fall through to the default layout
+    }
+    const listed = (paths ?? ['skills'])
+      .flatMap((p) => {
+        const resolved = join(root, p)
+        try {
+          // A path is a skill file itself, a folder holding one SKILL.md ("./" points at the
+          // plugin root), or a folder of skill folders; anything else is the default layout.
+          if (!statSync(resolved).isDirectory()) return [skill(resolved, `Plugin ${plugin}`)].filter((s): s is LocalSkill => !!s)
+          if (existsSync(join(resolved, 'SKILL.md'))) return [skill(join(resolved, 'SKILL.md'), `Plugin ${plugin}`)].filter((s): s is LocalSkill => !!s)
+          return inDirs(resolved, `Plugin ${plugin}`)
+        } catch {
+          return []
+        }
+      })
+      .filter((s) => !s.name.startsWith('.'))
+    return listed.length > 0 ? listed : inDirs(join(root, 'skills'), `Plugin ${plugin}`)
   })
 }
 

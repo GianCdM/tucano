@@ -21,9 +21,12 @@ beforeEach(() => {
   put(join(home, '.claude/skills/video/SKILL.md'), '---\nname: video\ndescription: |\n  Cria os vídeos do canal.\n  Use pra "novo vídeo".\n---\n# Vídeos\nLeia estilo.md antes.')
   put(join(home, '.claude/skills/video/estilo.md'), 'Quadro de marcador.')
   put(join(home, '.claude/skills/video/motor/build.py'), 'print(1)')
-  put(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'sdd@mkt': true, 'off@mkt': false }, hooks: { Stop: [] } }))
+  put(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'sdd@mkt': true, 'root@mkt': true, 'off@mkt': false }, hooks: { Stop: [] } }))
   put(join(home, '.claude/plugins/cache/mkt/sdd/1.0.0/skills/verify/SKILL.md'), '---\nname: verify\ndescription: "Confere a entrega"\n---\nPassos.')
   put(join(home, '.claude/plugins/cache/mkt/off/1.0.0/skills/hidden/SKILL.md'), '---\nname: hidden\n---\n')
+  // A plugin whose skill is the root itself, as "skills": ["./"] declares in the manifest.
+  put(join(home, '.claude/plugins/cache/mkt/root/1.0.0/SKILL.md'), '---\nname: humanize\ndescription: "Remove AI tells"\n---\nReceita.')
+  put(join(home, '.claude/plugins/cache/mkt/root/1.0.0/.claude-plugin/plugin.json'), JSON.stringify({ name: 'root', version: '1.0.0', skills: ['./'] }))
   put(join(home, '.codex/skills/imediato/SKILL.md'), '---\nname: imediato\ndescription: Responde já\n---\nCorpo.')
   put(join(home, 'secret.md'), 'segredo')
   symlinkSync(join(home, 'secret.md'), join(home, '.claude/skills/video/fuga.md'))
@@ -36,7 +39,7 @@ describe('local skills', () => {
 
   it("finds the user's Claude Code skills, the turned-on plugins' and Codex's, with their files and scripts", () => {
     const found = findLocalSkills(home)
-    expect(found.map((k) => [k.name, k.origin])).toEqual([['video', 'Claude Code'], ['verify', 'Plugin sdd'], ['imediato', 'Codex']])
+    expect(found.map((k) => [k.name, k.origin])).toEqual([['video', 'Claude Code'], ['verify', 'Plugin sdd'], ['humanize', 'Plugin root'], ['imediato', 'Codex']])
     const video = found[0]!
     expect(video.description).toBe('Cria os vídeos do canal. Use pra "novo vídeo".')
     expect(video.files).toEqual(['estilo.md', 'fuga.md'])
