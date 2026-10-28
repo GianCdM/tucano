@@ -14,13 +14,13 @@ Eles fazem o trabalho. O que mexe no mundo espera o seu sim.
 [![Plataforma](https://img.shields.io/badge/macOS-chip%20Apple-141210?logo=apple)](#instalar)
 [![Roda no](https://img.shields.io/badge/roda%20no-Claude%20Code%20·%20Codex%20·%20OpenCode%20·%20Pi-E2541B)](#roda-no-que-você-já-tem)
 
-[English](README.md) · **Português**
+[English](README.md) · **Português** · [tucano.sh](https://tucano.sh)
 
-<a href="https://github.com/eduwxyz/tucano/releases/latest/download/tucano-pt.mp4">
+<a href="https://github.com/eduwxyz/tucano/releases/download/v0.1.0/tucano-pt.mp4">
   <img src="docs/media/tucano-preview-pt.webp" width="880" alt="O Tucano em 90 segundos: um erro em produção vai do agente que olha o Datadog pro que corrige no GitLab e pro que revisa, e o merge espera a sua aprovação">
 </a>
 
-<sub>▶ <a href="https://github.com/eduwxyz/tucano/releases/latest/download/tucano-pt.mp4">Assista ao tour completo de 90 segundos</a></sub>
+<sub>▶ <a href="https://github.com/eduwxyz/tucano/releases/download/v0.1.0/tucano-pt.mp4">Assista ao tour completo de 90 segundos</a></sub>
 
 </div>
 
@@ -107,23 +107,15 @@ claude auth login
 
 Prefere o Codex? `npm install -g @openai/codex`. O login é feito dentro do Tucano.
 
-**2. Instale o Tucano.**
+**2. Instale o Tucano.** [Baixe o .dmg](https://github.com/eduwxyz/tucano/releases/latest/download/tucano-mac-arm64.dmg), abra e arraste o Tucano pra **Aplicativos**. O app é assinado e notarizado pela Apple, então abre sem aviso.
+
+Ou pelo Terminal, que também serve pra atualizar depois:
 
 ```bash
 curl -fsSL https://github.com/eduwxyz/tucano/releases/latest/download/install.sh | sh
 ```
 
-Ele baixa a última versão, coloca o Tucano em **Aplicativos** e abre. Como o arquivo vem pelo Terminal, o macOS abre sem aviso. Pra atualizar, rode o mesmo comando.
-
-<details>
-<summary>Prefere baixar o .dmg?</summary>
-
-1. Baixe o `tucano-mac-arm64.dmg` em [Releases](https://github.com/eduwxyz/tucano/releases/latest) e arraste o Tucano pra **Aplicativos**.
-2. Abra. O app ainda não tem certificado da Apple, então na primeira vez o macOS diz que ele "não pode ser aberto". Clique em **OK**.
-3. Vá em **Ajustes do Sistema → Privacidade e Segurança**, role até o aviso sobre o Tucano e clique em **Abrir Mesmo Assim**.
-
-Só na primeira vez.
-</details>
+Ele baixa a última versão, coloca o Tucano em **Aplicativos** e abre. Pra atualizar, rode o mesmo comando.
 
 **3. A primeira abertura é a configuração.** O Tucano fala português e inglês; escolha na primeira tela, ou depois em **Configurações**. Em seguida, em poucos passos: seu nome; quais harnesses os agentes podem usar (cada um com um **Testar agora** que manda uma pergunta de verdade); os modelos que roteiam os canais e cuidam da memória; o que todo agente deve saber sobre você; suas ferramentas (opcional); suas skills (opcional); e o primeiro agente, de um modelo pronto ou do zero. No fim, um canal `#geral` com o seu agente já trabalhando.
 
@@ -181,9 +173,6 @@ Tudo fica em `~/Library/Application Support/Tucano/`: o banco (`tucano.db`), um 
 <details>
 <summary>Problemas comuns</summary>
 
-**"Tucano não pode ser aberto porque a Apple não pode verificá-lo…"**
-Você baixou o `.dmg` pelo navegador. Siga o passo 3 do quadro do `.dmg`, ou instale pelo comando do Terminal, que não tem esse aviso.
-
 **O Claude Code aparece como "não instalado".**
 O Tucano procura o `claude` no mesmo `PATH` do seu Terminal. Rode `which claude`: se não aparecer nada, a instalação não terminou. Se aparecer, feche o Tucano (⌘Q) e abra de novo.
 
@@ -199,8 +188,8 @@ Instale e abra o [Docker Desktop](https://www.docker.com/products/docker-desktop
 **Um conector precisa de autorização.**
 Clique em **Autorizar no navegador**, na página do agente ou em Conectores, e entre na ferramenta.
 
-**O macOS pede as Chaves a cada atualização.**
-Sem certificado da Apple, cada versão tem uma assinatura nova. Clique em **Sempre Permitir** uma vez por versão.
+**O macOS pede as Chaves depois de atualizar da 0.1.0.**
+A 0.1.0 não era assinada com o certificado da Apple do Tucano; as versões seguintes são, então ele pede só essa vez. Clique em **Sempre Permitir**.
 </details>
 
 ## Desenvolvimento

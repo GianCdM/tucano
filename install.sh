@@ -1,9 +1,8 @@
 #!/bin/sh
 # Installs or updates Tucano:
 #   curl -fsSL https://github.com/eduwxyz/tucano/releases/latest/download/install.sh | sh
-# The app has no Apple certificate yet. A file curl downloads doesn't get the
-# "from the internet" mark, so macOS opens it without the Gatekeeper warning
-# a browser download would get. TUCANO_ZIP points at another zip (a URL or
+# The app is signed and notarized by Apple, so it opens with no warning; the
+# "from the internet" mark is cleared below all the same. TUCANO_ZIP points at another zip (a URL or
 # a local file) and TUCANO_DEST another folder, for testing a build
 # before it is released (then it doesn't open the app).
 # Before its public release Tucano was called agent-desk: an old agent-desk.app

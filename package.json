@@ -1,6 +1,6 @@
 {
   "name": "tucano",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Tucano: your team of AI agents on your Mac, with scopes, approvals and budgets.",
   "license": "Apache-2.0",
@@ -56,7 +56,13 @@
       ],
       "category": "public.app-category.productivity",
       "icon": "build/icon.icns",
-      "hardenedRuntime": false
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": false,
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "Tucano opens the Terminal for you when you ask it to."
+      }
     },
     "extraResources": [
       {

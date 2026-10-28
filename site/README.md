@@ -1,11 +1,15 @@
-# Site do Tucano
+# Tucano's site
 
-Página única e estática: `index.html` (CSS e JS embutidos) e `assets/`. Não precisa de build.
+Live at **[tucano.sh](https://tucano.sh)**. A single static page: `index.html` (CSS and JS inline) and `assets/`. No build step.
 
-- **Ver:** abra `index.html` no navegador. `index.html?shot` mostra tudo de uma vez (pra capturas).
-- **Idiomas:** português e inglês, com o seletor PT | EN no topo. Todo texto está escrito nos dois, lado a lado (`<span lang="pt-BR">` e `<span lang="en">`), e o CSS mostra o do `<html lang>`; o que os scripts desenham passa por `T(pt, en)`. Sem escolha salva, abre em português se o navegador estiver em português, senão em inglês.
-- **Identidade:** as formas do ícone do app (o corpo redondo, o olho, o bico em dois laranjas) em creme, preto e laranja. O tucano da abertura, o do rodapé e os agentes seguem o cursor com os olhos.
-- **Telas do app:** desenhadas em HTML, não são prints. O canal #checkout da seção "Ao vivo" toca sozinho e espera o visitante aprovar.
-- **Fontes:** Bricolage Grotesque (títulos) e Inter (texto), do Google Fonts.
-- **Logos:** `assets/logos/` vêm do [Simple Icons](https://simpleicons.org) (CC0).
-- **Publicar:** qualquer host estático serve a pasta como está (GitHub Pages, Netlify, Cloudflare Pages).
+- **Preview:** open `index.html` in a browser. `index.html?shot` shows everything at once (for screenshots).
+- **Languages:** Portuguese and English, with the PT | EN switch at the top. Every text is written in both, side by side (`<span lang="pt-BR">` and `<span lang="en">`), and the CSS shows the one matching `<html lang>`; what the scripts draw goes through `T(pt, en)`. With no saved choice it opens in Portuguese if the browser is in Portuguese, otherwise in English.
+- **Look:** the shapes of the app icon (the round body, the eye, the two-orange beak) in cream, black and orange. The toucan in the hero, the one in the footer and the agents follow the pointer with their eyes.
+- **App screens:** drawn in HTML, not screenshots. The #checkout channel in the "Live" section plays by itself and waits for the visitor to approve.
+- **Fonts:** Bricolage Grotesque (headings) and Inter (text), from Google Fonts.
+- **Logos:** `assets/logos/` come from [Simple Icons](https://simpleicons.org) (CC0).
+- **Publishing:** served by Cloudflare as static files on `tucano.sh` and `www.tucano.sh` (`wrangler.jsonc`; `_headers` adds the security headers, `.assetsignore` keeps this README and the config off the site):
+
+  ```bash
+  cd site && npx wrangler deploy
+  ```

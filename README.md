@@ -14,13 +14,13 @@ They do the work. Anything that touches the real world waits for your yes.
 [![Platform](https://img.shields.io/badge/macOS-Apple%20silicon-141210?logo=apple)](#install)
 [![Runs on](https://img.shields.io/badge/runs%20on-Claude%20Code%20·%20Codex%20·%20OpenCode%20·%20Pi-E2541B)](#runs-on-what-you-already-have)
 
-**English** · [Português](README.pt-BR.md)
+**English** · [Português](README.pt-BR.md) · [tucano.sh](https://tucano.sh)
 
-<a href="https://github.com/eduwxyz/tucano/releases/latest/download/tucano.mp4">
+<a href="https://github.com/eduwxyz/tucano/releases/download/v0.1.0/tucano.mp4">
   <img src="docs/media/tucano-preview.webp" width="880" alt="Tucano in 90 seconds: an error in production goes from the agent that reads Datadog to the one that fixes it in GitLab to the one that reviews it, and the merge waits for your approval">
 </a>
 
-<sub>▶ <a href="https://github.com/eduwxyz/tucano/releases/latest/download/tucano.mp4">Watch the full 90-second tour</a></sub>
+<sub>▶ <a href="https://github.com/eduwxyz/tucano/releases/download/v0.1.0/tucano.mp4">Watch the full 90-second tour</a></sub>
 
 </div>
 
@@ -107,23 +107,15 @@ claude auth login
 
 Prefer Codex? `npm install -g @openai/codex`. You'll sign in from inside Tucano.
 
-**2. Install Tucano.**
+**2. Install Tucano.** [Download the .dmg](https://github.com/eduwxyz/tucano/releases/latest/download/tucano-mac-arm64.dmg), open it and drag Tucano into **Applications**. The app is signed and notarized by Apple, so it opens with no warning.
+
+Or from the Terminal, which also updates it later:
 
 ```bash
 curl -fsSL https://github.com/eduwxyz/tucano/releases/latest/download/install.sh | sh
 ```
 
-It downloads the latest release, puts Tucano in **Applications** and opens it. Because the file comes through the Terminal, macOS opens it with no warning. Run the same command to update.
-
-<details>
-<summary>Rather download the .dmg?</summary>
-
-1. Download `tucano-mac-arm64.dmg` from [Releases](https://github.com/eduwxyz/tucano/releases/latest) and drag Tucano into **Applications**.
-2. Open it. The app isn't signed with an Apple certificate yet, so the first time macOS says it "can't be opened". Click **OK**.
-3. Go to **System Settings → Privacy & Security**, scroll to the message about Tucano and click **Open Anyway**.
-
-Only the first time.
-</details>
+It downloads the latest release, puts Tucano in **Applications** and opens it. Run the same command to update.
 
 **3. The first run is the setup.** Tucano speaks English and Portuguese; pick one on the first screen, or later in **Settings**. Then, in a few steps: your name; which harnesses agents may use (each with a **Test now** button that sends a real question); the models that route channels and keep memory; what every agent should know about you; your tools (optional); your skills (optional); and your first agent, from a template or from scratch. It ends in a `#general` channel with your agent already working.
 
@@ -181,9 +173,6 @@ Everything lives in `~/Library/Application Support/Tucano/`: the database (`tuca
 <details>
 <summary>Troubleshooting</summary>
 
-**"Tucano can't be opened because Apple cannot check it…"**
-You downloaded the `.dmg` in a browser. Follow step 3 of the `.dmg` instructions, or install with the Terminal command, which has no warning.
-
 **Claude Code shows as "not installed".**
 Tucano looks for `claude` in the same `PATH` as your Terminal. Run `which claude`: if nothing comes back, the install didn't finish. If it does, quit Tucano (⌘Q) and open it again.
 
@@ -199,8 +188,8 @@ Install and open [Docker Desktop](https://www.docker.com/products/docker-desktop
 **A connector needs authorization.**
 Click **Authorize in the browser**, on the agent's page or in Connectors, and sign in to the tool.
 
-**macOS asks for the Keychain after each update.**
-Without an Apple certificate, each version has a new signature. Click **Always Allow** once per version.
+**macOS asks for the Keychain after updating from 0.1.0.**
+0.1.0 wasn't signed with Tucano's Apple certificate; later versions are, so it asks only this once. Click **Always Allow**.
 </details>
 
 ## Development
