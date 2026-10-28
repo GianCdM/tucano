@@ -20,6 +20,8 @@
 <meta property="og:url" content="https://tucano.sh/">
 <meta property="og:type" content="website">
 <link rel="canonical" href="https://tucano.sh/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@tucanosh">
 <meta name="theme-color" content="#F3EFE6">
 <link rel="icon" type="image/png" href="assets/brand/favicon-32.png">
 <link rel="apple-touch-icon" href="assets/brand/favicon-180.png">
@@ -793,7 +795,7 @@ if (/(^|\.)tucano\.sh$/.test(location.hostname)) {
     </div>
     <footer>
       <span><span lang="pt-BR">Feito no Brasil.</span><span lang="en">Made in Brazil.</span></span>
-      <nav><a href="https://github.com/eduwxyz/tucano">GitHub</a><a href="https://github.com/eduwxyz/tucano/releases"><span lang="pt-BR">Versões</span><span lang="en">Releases</span></a><a href="https://github.com/eduwxyz/tucano#readme"><span lang="pt-BR">Guia completo</span><span lang="en">Full guide</span></a><a href="https://github.com/eduwxyz/tucano/issues"><span lang="pt-BR">Problemas e ideias</span><span lang="en">Issues and ideas</span></a><a href="https://github.com/eduwxyz/tucano/blob/HEAD/LICENSE">Apache-2.0</a></nav>
+      <nav><a href="https://github.com/eduwxyz/tucano">GitHub</a><a href="https://x.com/tucanosh">X (@tucanosh)</a><a href="https://github.com/eduwxyz/tucano/releases"><span lang="pt-BR">Versões</span><span lang="en">Releases</span></a><a href="https://github.com/eduwxyz/tucano#readme"><span lang="pt-BR">Guia completo</span><span lang="en">Full guide</span></a><a href="https://github.com/eduwxyz/tucano/issues"><span lang="pt-BR">Problemas e ideias</span><span lang="en">Issues and ideas</span></a><a href="https://github.com/eduwxyz/tucano/blob/HEAD/LICENSE">Apache-2.0</a></nav>
     </footer>
   </div>
 </section>
@@ -1081,6 +1083,7 @@ setLang(LANG)
     if (el.matches('a[href*="tucano-mac-arm64.dmg"]')) ph.capture('download_clicked', { location: where(el) })
     else if (el.matches('.copy')) ph.capture('install_command_copied', { location: where(el) })
     else if (el.matches('a[href^="https://github.com/eduwxyz/tucano"]')) ph.capture('github_clicked', { location: where(el) })
+    else if (el.matches('a[href^="https://x.com/tucanosh"]')) ph.capture('x_clicked', { location: where(el) })
     else if (el.matches('.lang button')) {
       ph.capture('language_changed', { to: el.dataset.set })
       ph.register({ site_lang: el.dataset.set })
