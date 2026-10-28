@@ -241,11 +241,11 @@ function apply(e: CoreEvent): void {
 }
 
 export async function start(): Promise<void> {
-  window.agentDesk.onNavigate((id) => navigate({ kind: 'conversation', id }))
+  window.tucano.onNavigate((id) => navigate({ kind: 'conversation', id }))
   let viewing: string | null = null
   subscribe(() => {
     const id = state.view?.kind === 'conversation' ? state.view.id : null
-    if (id !== viewing) window.agentDesk.viewing((viewing = id))
+    if (id !== viewing) window.tucano.viewing((viewing = id))
   })
   await connect(apply)
   const snap = await call('snapshot')
@@ -450,7 +450,7 @@ export const dmWith = (agentId: string): Promise<string> => call('openDm', { age
 
 // Opens the Mac's folder picker; resolves with why it couldn't be lent, if so.
 export async function lendFolder(agentId: string): Promise<string | null> {
-  const path = await window.agentDesk.pickFolder()
+  const path = await window.tucano.pickFolder()
   if (!path) return null
   try {
     await call('lendFolder', { agentId, path })

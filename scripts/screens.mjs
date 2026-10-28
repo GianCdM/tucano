@@ -12,7 +12,7 @@ const out = process.argv.find((a, i) => i >= 2 && !a.startsWith('--')) ?? 'scree
 const real = process.argv.includes('--real')
 mkdirSync(out, { recursive: true })
 
-const data = mkdtempSync(join(tmpdir(), 'agent-desk-'))
+const data = mkdtempSync(join(tmpdir(), 'tucano-'))
 for (const dir of [tmpdir(), '/tmp']) rmSync(join(dir, 'tucano-demo-tasks.json'), { force: true }) // the demo connector starts from its sample list
 const app = await electron.launch({
   args: ['.'],
@@ -195,6 +195,6 @@ console.log(errors.length ? `ERRORS:\n${errors.join('\n')}` : 'no console errors
 console.log(`data: ${data}`)
 await app.close()
 // Computers made by this run go with it.
-const prefix = `agentdesk-${createHash('sha1').update(data).digest('hex').slice(0, 6)}-`
+const prefix = `tucano-${createHash('sha1').update(data).digest('hex').slice(0, 6)}-`
 const ids = execFileSync('docker', ['ps', '-aq', '--filter', `name=${prefix}`], { encoding: 'utf8' }).trim().split('\n').filter(Boolean)
 if (ids.length) execFileSync('docker', ['rm', '-f', ...ids], { stdio: 'ignore' })

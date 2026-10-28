@@ -7,7 +7,7 @@ ipcRenderer.on('core:port', (event) => {
   window.postMessage('core:port', '*', event.ports)
 })
 
-contextBridge.exposeInMainWorld('agentDesk', {
+contextBridge.exposeInMainWorld('tucano', {
   connect: (): void => ipcRenderer.send('core:connect'),
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke('pick-folder') as Promise<string | null>,
   // A click on a notification opens its conversation.

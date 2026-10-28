@@ -2,7 +2,7 @@ import type { CoreEvent, Method, Params, Request, Result, Wire } from '../../sha
 
 declare global {
   interface Window {
-    agentDesk: { connect: () => void; pickFolder: () => Promise<string | null>; onNavigate: (cb: (conversationId: string) => void) => void; viewing: (conversationId: string | null) => void }
+    tucano: { connect: () => void; pickFolder: () => Promise<string | null>; onNavigate: (cb: (conversationId: string) => void) => void; viewing: (conversationId: string | null) => void }
   }
 }
 
@@ -29,7 +29,7 @@ export function connect(onEvent: (e: CoreEvent) => void): Promise<void> {
       resolve()
     }
     window.addEventListener('message', onMessage)
-    window.agentDesk.connect()
+    window.tucano.connect()
   })
 }
 

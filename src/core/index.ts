@@ -446,7 +446,7 @@ function settleDraft(messageId: string, agentId?: string): void {
 
 
 const api: Api = {
-  // The page loads from file://, which can't fetch agentdesk:// (CORS); text comes through the core instead.
+  // The page loads from file://, which can't fetch tucano:// (CORS); text comes through the core instead.
   artifactText: ({ id }) => {
     const a = db.artifacts().find((x) => x.id === id)
     if (!a) return null

@@ -8,7 +8,7 @@ import type { Engine, EngineEvent, Turn } from './types'
 import { L } from '../../shared/lang'
 
 // Codex reads AGENTS.md, skills, plugins and memories from the user's home no
-// matter which flags are passed, so agent-desk runs it with a home of its
+// matter which flags are passed, so Tucano runs it with a home of its
 // own. The user logs into Codex once more, for the app, through Codex itself.
 export function codexEnv(home: string): NodeJS.ProcessEnv {
   return { ...process.env, HOME: home, CODEX_HOME: join(home, '.codex') }

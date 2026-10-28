@@ -86,7 +86,7 @@ export function loginEnv(): Promise<NodeJS.ProcessEnv> {
       TMPDIR: process.env['TMPDIR'],
       PATH: '/usr/bin:/bin:/usr/sbin:/sbin'
     }
-    const marker = '__AGENTDESK_ENV__'
+    const marker = '__TUCANO_ENV__'
     const child = spawn(base.SHELL!, ['-ilc', `printf '${marker}\\0'; env -0`], { env: base, stdio: ['ignore', 'pipe', 'ignore'] })
     let out = ''
     child.stdout.setEncoding('utf8').on('data', (d: string) => (out += d))
