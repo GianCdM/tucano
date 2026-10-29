@@ -272,6 +272,10 @@ export const ENGINES: Record<EngineId, { label: string; cli: string; login: stri
 }
 export const ENGINE_IDS = Object.keys(ENGINES) as EngineId[]
 
+// A harness starts picked only when it can actually run: one not installed or not
+// signed in yet starts off.
+export const startsPicked = (st: EngineStatus): boolean => !st.soon && st.loggedIn
+
 // Hints and labels read the language when shown (getters), so a list made once still switches.
 const model = (id: string, engine: EngineId, label: string, pt: string, en: string): Model => ({
   id,
