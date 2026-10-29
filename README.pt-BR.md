@@ -14,7 +14,7 @@ Eles fazem o trabalho. O que mexe no mundo espera o seu sim.
 [![Plataforma](https://img.shields.io/badge/macOS-chip%20Apple-141210?logo=apple)](#instalar)
 [![Roda no](https://img.shields.io/badge/roda%20no-Claude%20Code%20·%20Codex%20·%20OpenCode%20·%20Pi-E2541B)](#roda-no-que-você-já-tem)
 
-[English](README.md) · **Português** · [tucano.sh](https://tucano.sh) · [@tucanosh](https://x.com/tucanosh)
+[English](README.md) · **Português** · [tucano.sh](https://tucano.sh) · [@tucanosh](https://x.com/tucanosh) · [Novidades](CHANGELOG.md)
 
 https://github.com/user-attachments/assets/0451d858-2f65-4d72-8913-f11a5d88fbad
 

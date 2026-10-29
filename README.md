@@ -14,7 +14,7 @@ They do the work. Anything that touches the real world waits for your yes.
 [![Platform](https://img.shields.io/badge/macOS-Apple%20silicon-141210?logo=apple)](#install)
 [![Runs on](https://img.shields.io/badge/runs%20on-Claude%20Code%20·%20Codex%20·%20OpenCode%20·%20Pi-E2541B)](#runs-on-what-you-already-have)
 
-**English** · [Português](README.pt-BR.md) · [tucano.sh](https://tucano.sh) · [@tucanosh](https://x.com/tucanosh)
+**English** · [Português](README.pt-BR.md) · [tucano.sh](https://tucano.sh) · [@tucanosh](https://x.com/tucanosh) · [Changelog](CHANGELOG.md)
 
 https://github.com/user-attachments/assets/533e1bf1-b4ca-4f4a-aad4-e015c6b4c421
 

@@ -12,6 +12,31 @@ VERSION=$(node -p "require('./package.json').version")
 TAG="v$VERSION"
 OUT="$HOME/Library/Caches/tucano/release"
 
+# The release notes are this version's section of CHANGELOG.md, between a line on
+# what Tucano is and how to install it.
+NOTES="$HOME/Library/Caches/tucano/release-notes-$VERSION.md"
+mkdir -p "$(dirname "$NOTES")"
+SECTION=$(awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" { on = 1; next } /^## \[/ { on = 0 } /^\[[0-9.]+\]: / { on = 0 } on' CHANGELOG.md)
+[ -n "$(echo "$SECTION" | tr -d '[:space:]')" ] || { echo "CHANGELOG.md has no section for $VERSION." >&2; exit 1; }
+cat > "$NOTES" <<NOTES_EOF
+**Tucano is a team of AI agents that lives on your Mac.** You talk to them in channels, like a work chat; they research, write, code and use your company's tools, and you decide how far each one goes. It runs on the Claude Code, Codex, OpenCode or Pi you already have, on your own subscription.
+$SECTION
+
+## Install
+
+You need a Mac with Apple silicon (M1 or later) and at least one of [Claude Code](https://code.claude.com) or [Codex](https://github.com/openai/codex), installed and signed in.
+
+**From the .dmg.** Download \`tucano-mac-arm64.dmg\` below, open it and drag Tucano into Applications.
+
+**From the Terminal.** Installs into Applications and opens it.
+
+\`\`\`bash
+curl -fsSL https://github.com/eduwxyz/tucano/releases/latest/download/install.sh | sh
+\`\`\`
+
+From 0.1.2 on, Tucano updates itself. Every version is in [CHANGELOG.md](https://github.com/eduwxyz/tucano/blob/main/CHANGELOG.md).
+NOTES_EOF
+
 if [ "$1" != "--no-publish" ]; then
   [ -z "$(git status --porcelain)" ] || { echo "There are uncommitted changes." >&2; exit 1; }
   gh release view "$TAG" >/dev/null 2>&1 && { echo "Release $TAG already exists: bump the version in package.json." >&2; exit 1; }
@@ -55,4 +80,4 @@ ls -lh "$OUT"/tucano-mac-arm64.*
 [ "$1" = "--no-publish" ] && exit 0
 git push origin HEAD
 gh release create "$TAG" "$OUT/tucano-mac-arm64.dmg" "$OUT/tucano-mac-arm64.zip" "$OUT/tucano-mac-arm64.zip.blockmap" "$OUT/latest-mac.yml" install.sh \
-  --target "$(git rev-parse HEAD)" --title "Tucano $VERSION" --notes-file docs/release-notes.md
+  --target "$(git rev-parse HEAD)" --title "Tucano $VERSION" --notes-file "$NOTES"
