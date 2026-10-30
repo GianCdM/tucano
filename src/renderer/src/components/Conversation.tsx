@@ -718,6 +718,10 @@ async function prepareImage(file: File): Promise<Attached | string> {
   }
 }
 
+// One draft per conversation, kept while the app runs: leaving a channel doesn't
+// lose the message you were typing.
+const drafts = new Map<string, { text: string; images: Attached[] }>()
+
 export function Composer({ conversationId, members, placeholder }: { conversationId: string; members: Agent[]; placeholder: string }): ReactNode {
   const [text, setText] = useState('')
   const [images, setImages] = useState<Attached[]>([])
@@ -735,11 +739,17 @@ export function Composer({ conversationId, members, placeholder }: { conversatio
     return q?.author.kind === 'agent' ? agentById(s, q.author.id)?.name : undefined
   })
 
+  // What's typed but not sent, per conversation, so leaving a channel and coming
+  // back keeps it (like a draft). In memory: closing the app drops the drafts.
+  const live = useRef({ text, images })
+  live.current = { text, images }
   useEffect(() => {
-    setText('')
-    setImages([])
+    const draft = drafts.get(conversationId)
+    setText(draft?.text ?? '')
+    setImages(draft?.images ?? [])
     setNote('')
     ref.current?.focus()
+    return () => void drafts.set(conversationId, live.current)
   }, [conversationId])
 
   const addFiles = async (files: File[]): Promise<void> => {
