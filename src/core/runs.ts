@@ -1246,6 +1246,8 @@ export class Runner {
   // ("Devolver" or closing the window) — exactly what the agent asked for with
   // ask_user, so it goes on by itself instead of waiting for a message.
   async handedBack(agentId: string): Promise<void> {
+    // Paused, nobody starts working: the question stays pending, as a message would leave it.
+    if (this.paused) return
     const agent = this.deps.db.agent(agentId)
     if (!agent || agent.archived) return
     let hit: { conv: Conversation; asked: Message } | undefined // the latest pending question of this agent, any conversation

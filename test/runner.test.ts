@@ -335,6 +335,18 @@ describe('browser handback', () => {
     expect(events.some((e) => e.type === 'message' && (e as { message?: Message }).message?.author.kind === 'agent')).toBe(true)
   })
 
+  it('leaves the question pending while the agents are paused', async () => {
+    const r = runnerWithGateway()
+    await r.send('c1', '@lia me pergunta o que faltar')
+    await r.idle()
+    const [asked] = agentMessages()
+    r.setPaused(true)
+    await r.handedBack('a1')
+    await r.idle()
+    expect(db.message(asked!.id)?.run?.status).toBe('waiting_input')
+    expect(agentMessages()).toHaveLength(1)
+  })
+
   it('does nothing when nothing is pending or the agent is gone', async () => {
     const r = runnerWithGateway()
     await r.handedBack('a1')
