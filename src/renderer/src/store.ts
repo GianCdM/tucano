@@ -191,6 +191,8 @@ function apply(e: CoreEvent): void {
       }
       case 'delta':
         return { ...s, messages: s.messages.map((m) => (m.id === e.id ? { ...m, text: m.text + e.text } : m)) }
+      case 'message_removed':
+        return { ...s, messages: s.messages.filter((m) => m.id !== e.id) }
       case 'agent':
         return { ...s, agents: upsert(s.agents, e.agent) }
       case 'conversation': {

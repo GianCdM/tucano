@@ -259,7 +259,7 @@ describe('Runner', () => {
     expect(agentMessages().every((m) => m.run?.status === 'done')).toBe(true)
   })
 
-  it('cancelling a queued reply leaves the rest of the lane in order', async () => {
+  it('cancelling a queued reply removes the bubble and leaves the rest of the lane in order', async () => {
     const r = runner(fakeEngine('claude', { delayMs: 40, reply: () => 'resposta sequencial longa o bastante' }))
     await r.send('d1', 'um')
     await r.send('d1', 'dois')
@@ -270,11 +270,24 @@ describe('Runner', () => {
 
     r.cancelQueued(second!.id)
     await r.idle()
-    expect(db.message(second!.id)?.run?.status).toBe('stopped')
-    expect(db.message(second!.id)?.text).toContain('cancelou')
+    expect(db.message(second!.id)).toBeUndefined() // gone, not a tombstone stuck on the thread forever
+    expect(events.some((e) => e.type === 'message_removed' && e.id === second!.id && e.conversationId === 'd1')).toBe(true)
     expect(db.message(first!.id)?.run?.status).toBe('done')
     expect(db.message(third!.id)?.run?.status).toBe('done')
     expect(claude.turns).toHaveLength(2) // the cancelled one never started
+  })
+
+  it('a reply the app closed before it started leaves a note explaining why', async () => {
+    const r = runner(fakeEngine('claude', { delayMs: 40, reply: () => 'resposta sequencial longa o bastante' }))
+    await r.send('d1', 'um')
+    await r.send('d1', 'dois')
+    const [first, second] = agentMessages()
+
+    r.cancelQueued(second!.id, 'app')
+    await r.idle()
+    expect(db.message(second!.id)?.run?.status).toBe('stopped') // the app died: the note stays so the thread explains itself
+    expect(db.message(second!.id)?.text).toContain('app foi fechado')
+    expect(db.message(first!.id)?.run?.status).toBe('done')
   })
 
   it('"Mandar agora" stops the running reply and takes the lane next', async () => {
@@ -304,8 +317,8 @@ describe('Runner', () => {
     r.stop(first!.id)
     await r.idle()
     expect(db.message(first!.id)?.run?.status).toBe('stopped')
-    expect(db.message(second!.id)?.run?.status).toBe('stopped')
-    expect(db.message(third!.id)?.run?.status).toBe('stopped')
+    expect(db.message(second!.id)).toBeUndefined() // dropped with the lane: no tombstone either
+    expect(db.message(third!.id)).toBeUndefined()
     expect(claude.turns).toHaveLength(1) // nothing queued started
   })
 
@@ -335,6 +348,13 @@ describe('Runner', () => {
 })
 
 describe('Db', () => {
+  it('removes a message for good', () => {
+    db.saveMessage({ id: 'm1', conversationId: 'd1', author: { kind: 'agent', id: 'a1' }, text: 'oi', at: 1 })
+    expect(db.message('m1')).toBeDefined()
+    db.deleteMessage('m1')
+    expect(db.message('m1')).toBeUndefined()
+  })
+
   it('marks runs left working as interrupted on startup', () => {
     db.saveMessage({ id: 'm1', conversationId: 'd1', author: { kind: 'agent', id: 'a1' }, text: 'meio', at: 1, run: { status: 'working', steps: [{ id: 's', label: 'Pensando', status: 'running' }] } })
     expect(db.interruptStaleRuns()).toBe(1)

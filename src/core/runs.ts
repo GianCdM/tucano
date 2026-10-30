@@ -218,7 +218,9 @@ export class Runner {
   }
 
   // A queued reply leaves the queue: its X on the bubble, "Parar" on the lane,
-  // or the app closing before it ever started.
+  // or the app closing before it ever started. Cancelled by hand it never
+  // happened: the bubble is gone for good. Closed by the app it leaves a note,
+  // so the thread explains why an answer is missing.
   cancelQueued(messageId: string, why: 'cancel' | 'app' = 'cancel'): void {
     const i = this.queue.findIndex((j) => j.msgId === messageId)
     if (i !== -1) {
@@ -226,11 +228,16 @@ export class Runner {
       this.refreshQueue()
     }
     const m = this.deps.db.message(messageId)
-    if (m?.run?.status === 'queued')
-      this.update(m, {
-        text: why === 'app' ? L('O app foi fechado antes desta resposta começar.', 'The app was closed before this reply started.') : L('Você cancelou esta resposta da fila.', 'You cancelled this reply from the queue.'),
-        run: { ...m.run, status: 'stopped', steps: [], queuePos: undefined }
-      })
+    if (m?.run?.status !== 'queued') return
+    if (why === 'cancel') {
+      this.deps.db.deleteMessage(messageId)
+      this.deps.emit({ type: 'message_removed', id: messageId, conversationId: m.conversationId })
+      return
+    }
+    this.update(m, {
+      text: L('O app foi fechado antes desta resposta começar.', 'The app was closed before this reply started.'),
+      run: { ...m.run, status: 'stopped', steps: [], queuePos: undefined }
+    })
   }
 
   // "Mandar agora": to the front of the queue. If its lane is working, that run

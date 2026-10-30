@@ -96,6 +96,7 @@ export type Result<M extends Method> = Awaited<ReturnType<Api[M]>>
 
 export type CoreEvent =
   | { type: 'message'; message: Message }
+  | { type: 'message_removed'; id: string; conversationId: string } // a cancelled queued reply leaves no trace
   | { type: 'delta'; id: string; text: string } // appended to message text while streaming
   | { type: 'agent'; agent: Agent }
   | { type: 'conversation'; conversation: Conversation }
