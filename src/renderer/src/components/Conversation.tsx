@@ -841,6 +841,7 @@ export function Composer({ conversationId, members, placeholder }: { conversatio
       text,
       images.map(({ name, mime, data }) => ({ name, mime, data }))
     )
+    drafts.delete(conversationId)
     setText('')
     setImages([])
     setNote('')
