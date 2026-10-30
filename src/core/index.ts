@@ -237,7 +237,8 @@ const browser = new Browser({
   dataDir,
   emit,
   me: () => settings().workspaceName,
-  jev: { key: () => secrets.get(JEV_SECRET), on: () => !!settings().browserJev && settings().jevKey === true }
+  jev: { key: () => secrets.get(JEV_SECRET), on: () => !!settings().browserJev && settings().jevKey === true },
+  onHandback: (agentId) => void runner.handedBack(agentId)
 })
 const connectors = new ConnectorManager({
   db,
