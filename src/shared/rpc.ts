@@ -60,7 +60,7 @@ export interface Api {
   summarizeNow(p: { conversationId: string }): void
   computerAction(p: { agentId: string; action: 'start' | 'restart' | 'erase' | 'open_folder' | 'refresh' }): void
   stopService(p: { agentId: string; name: string }): void
-  browserAction(p: { agentId: string; action: 'show' | 'hide' | 'clear' }): void // show: I take over the agent's browser; clear: logins and history go
+  browserAction(p: { agentId: string; conversationId?: string; action: 'show' | 'hide' | 'clear' }): void // show: I take over the thread's browser; clear: logins and history go
   lendFolder(p: { agentId: string; path: string }): void // throws why it can't, for the page
   folderAction(p: { agentId: string; name: string; action: 'read_only' | 'read_write' | 'return' }): void
   openExternal(p: { url: string }): void

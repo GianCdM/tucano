@@ -233,6 +233,7 @@ export interface BrowserReply {
 // An agent's browser as the side panel shows it (spec §24): the last frame and what it did.
 export interface BrowserView {
   agentId: string
+  conversationId: string // the thread this tab drives: one tab per (agent, conversation)
   url: string
   title: string
   frame?: string // data:image/jpeg URL of the page as it is now

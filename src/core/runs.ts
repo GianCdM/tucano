@@ -128,7 +128,6 @@ export class Runner {
   private lanes = new Map<string, number>() // lane -> it has a run going
   private laneRun = new Map<string, string>() // lane -> the reply it's working on ("Mandar agora")
   private approvalLanes = new Set<string>() // lanes whose latest reply sits at waiting_approval: the thread waits for the decision
-  private browserTail = new Map<string, Promise<void>>() // agentId -> the tail of its browser lock
   private controllers = new Map<string, Control>()
   private paused = false // "Pausar tudo": nobody starts working until it's off
   private idleWaiters: (() => void)[] = []
@@ -490,18 +489,6 @@ export class Runner {
     this.approvalLanes.add(`${conversationId}:${agentId}`)
   }
 
-  // The agent's browser is one tab with one set of logins: the first browser
-  // call of a run holds it until the run ends, so another run of the same agent
-  // waits for the tab instead of stealing the page in the middle of a task.
-  private async holdBrowser(agentId: string): Promise<{ waited: boolean; release: () => void }> {
-    const prev = this.browserTail.get(agentId)
-    let release!: () => void
-    const mine = new Promise<void>((ok) => (release = ok))
-    this.browserTail.set(agentId, mine)
-    if (prev) await prev
-    return { waited: !!prev, release }
-  }
-
   private async execute(agent: Agent, conv: Conversation, opts: { depth: number; existing?: Message; task?: string; work?: string; routine?: boolean }): Promise<Message> {
     const { db, emit, engines } = this.deps
     const settings = await this.deps.settings()
@@ -592,7 +579,6 @@ export class Runner {
 
     const control: Control = { ctl: new AbortController() }
     this.controllers.set(msg.id, control)
-    let browserHold: { waited: boolean; release: () => void } | undefined
     const halt = (reason: NonNullable<Control['reason']>): void => {
       if (control.reason) return
       control.reason = reason
@@ -834,14 +820,6 @@ export class Runner {
           flush()
           msg.run = { ...msg.run!, browser: true, steps: [...closeThinking('done', THOUGHT()), step] }
           save()
-          browserHold ??= await this.holdBrowser(agent.id)
-          if (browserHold.waited) {
-            const waiting = { ...step, label: L('Aguardando o navegador', 'Waiting for the browser'), detail: L('a aba dele está ocupada em outra conversa', 'his tab is busy in another conversation') }
-            msg.run = { ...msg.run!, steps: msg.run!.steps.map((s) => (s.id === step.id ? waiting : s)) }
-            save()
-            msg.run = { ...msg.run!, steps: msg.run!.steps.map((s) => (s.id === step.id ? step : s)) }
-            save()
-          }
           const out = await browser.call(current, name, args, { conversationId: conv.id, messageId: msg.id })
           if (out.artifact) artifactIds.push(out.artifact.id)
           const close = (status: Step['status'], patch: Partial<Step> = {}): Step[] => msg.run!.steps.map((s) => (s.id === step.id ? { ...s, ...patch, status, ms: Date.now() - t0 } : s))
@@ -1143,7 +1121,6 @@ export class Runner {
       clearInterval(stall)
       flush()
       session?.close()
-      browserHold?.release()
       this.controllers.delete(msg.id)
     }
 
@@ -1271,7 +1248,7 @@ export class Runner {
       // A click in the agent's browser: made only on the same page, on the same button.
       const what = L(`clicar em "${String(ap.args['alvo'] ?? '')}"`, `clicking "${String(ap.args['alvo'] ?? '')}"`)
       if (decision === 'approved' && agent?.browser && this.deps.browser) {
-        const r = await this.deps.browser.approved(agent, ap.args)
+        const r = await this.deps.browser.approved(agent, ap.args, ap.conversationId)
         outcome = r.ok ? ran : L(`Não executou: ${r.text}`, `Didn't run: ${r.text}`)
         task = r.ok
           ? L(`${me} aprovou ${what}, e o app clicou. A página agora:\n${r.text}\n\nContinue a partir daqui e conte o resultado a ${me}.`, `${me} approved ${what}, and the app clicked. The page now:\n${r.text}\n\nGo on from here and tell ${me} the result.`)
@@ -1360,24 +1337,21 @@ export class Runner {
     for (const ap of this.deps.db.expiredApprovals()) await this.decide(ap.id, 'expired')
   }
 
-  // The user took over the agent's browser ("Assumir") and handed it back
+  // The user took over a thread's browser ("Assumir") and handed it back
   // ("Devolver" or closing the window) — exactly what the agent asked for with
   // ask_user, so it goes on by itself instead of waiting for a message.
-  async handedBack(agentId: string): Promise<void> {
+  async handedBack(agentId: string, conversationId: string): Promise<void> {
     // Paused, nobody starts working: the question stays pending, as a message would leave it.
     if (this.paused) return
     const agent = this.deps.db.agent(agentId)
     if (!agent || agent.archived) return
-    let hit: { conv: Conversation; asked: Message } | undefined // the latest pending question of this agent, any conversation
-    for (const conv of this.deps.db.conversations()) {
-      const asked = this.deps.db
-        .recentMessages(conv.id, 50)
-        .reverse()
-        .find((m) => m.author.kind === 'agent' && m.author.id === agentId && m.run?.status === 'waiting_input')
-      if (asked && (!hit || asked.at > hit.asked.at)) hit = { conv, asked }
-    }
-    if (!hit) return
-    const { conv, asked } = hit
+    const conv = this.deps.db.conversation(conversationId) // the tab handed back belongs to this thread
+    if (!conv) return
+    const asked = this.deps.db
+      .recentMessages(conv.id, 50)
+      .reverse()
+      .find((m) => m.author.kind === 'agent' && m.author.id === agentId && m.run?.status === 'waiting_input')
+    if (!asked) return
     this.update(asked, { run: { ...asked.run!, status: 'done' } })
     const { workspaceName } = await this.deps.settings()
     void this.launch(agent, conv, {

@@ -386,27 +386,29 @@ describe('ask_user through the gateway', () => {
     expect(db.messages().some((m) => m.text.startsWith('Chamei'))).toBe(false)
   })
 
-  it('the same agent in two conversations waits for the browser instead of stealing the tab', async () => {
+  it('the same agent in two conversations drives two tabs at once', async () => {
     db.saveAgent(agent('a1', 'lia', { browser: true }))
     db.createConversation({ id: 'd2', kind: 'dm', name: 'a1', members: ['a1'] })
     const order: string[] = []
-    let open!: () => void
-    const gate = new Promise<void>((ok) => (open = ok))
-    // The first turn opens the page and then sits on the gate, still holding the
-    // browser; the second turn must wait for the whole run, not just the call.
+    let both!: () => void
+    const arrived = new Promise<void>((ok) => (both = ok))
+    const seen = new Set<string>()
+    // Each thread's call runs right away and only ends once the other started:
+    // two tabs, no waiting, no stolen page.
     const browserEngine: Engine = {
       id: 'claude',
       async *run(turn) {
         await callTool(turn.mcpUrl!, 'navegador_abrir', { url: 'https://exemplo.test' })
-        await gate
         yield { type: 'done' as const, text: 'ok', usage: { inputTokens: 1, cacheReadTokens: 0, outputTokens: 1 } }
       }
     }
     const fakeBrowser = {
-      call: async (_agent: unknown, _name: string, _args: Record<string, unknown>, ctx: { messageId: string }): Promise<BrowserOutcome> => {
-        order.push(`start:${ctx.messageId}`)
-        await new Promise((res) => setTimeout(res, 40))
-        order.push(`end:${ctx.messageId}`)
+      call: async (_agent: unknown, _name: string, _args: Record<string, unknown>, ctx: { conversationId: string }): Promise<BrowserOutcome> => {
+        order.push(`start:${ctx.conversationId}`)
+        seen.add(ctx.conversationId)
+        if (seen.size === 2) both()
+        await Promise.race([arrived, new Promise((res) => setTimeout(res, 2000))])
+        order.push(`end:${ctx.conversationId}`)
         return { result: textResult('página aberta') }
       },
       approved: async () => ({ ok: true, text: '' })
@@ -423,19 +425,10 @@ describe('ask_user through the gateway', () => {
     })
     await r.send('d1', 'abre a página')
     await r.send('d2', 'abre também')
-    await new Promise((res) => setTimeout(res, 90))
-    expect(claude.turns).toHaveLength(2) // both runs are alive: the lanes are different
-    const ids = order.map((o) => o.split(':')[1]!)
-    expect(order).toHaveLength(2) // one call in the tab, the other held with its run
-    expect(new Set(ids).size).toBe(1)
-    expect(order[1]).toBe(`end:${ids[0]}`)
-
-    open()
     await r.idle()
-    expect(order).toHaveLength(4)
-    const other = order.map((o) => o.split(':')[1]!).find((id) => id !== ids[0])!
-    expect(order[2]).toBe(`start:${other}`) // the held call runs only after the first run let go
-    expect(order[3]).toBe(`end:${other}`)
+    expect(claude.turns).toHaveLength(2) // both runs are alive: the lanes are different
+    expect(order.filter((o) => o.startsWith('start')).sort()).toEqual(['start:d1', 'start:d2']) // neither call waited for the other
+    expect(order.filter((o) => o.startsWith('end')).sort()).toEqual(['end:d1', 'end:d2'])
     expect(agentMessages().every((m) => m.run?.status === 'done')).toBe(true)
   })
 })
@@ -469,7 +462,7 @@ describe('browser handback', () => {
     expect(asked?.run?.status).toBe('waiting_input')
 
     // No new human message: the handback itself is the answer.
-    await r.handedBack('a1')
+    await r.handedBack('a1', 'c1')
     await r.idle()
 
     expect(db.message(asked!.id)?.run?.status).toBe('done')
@@ -480,13 +473,28 @@ describe('browser handback', () => {
     expect(events.some((e) => e.type === 'message' && (e as { message?: Message }).message?.author.kind === 'agent')).toBe(true)
   })
 
+  it('handing one thread’s browser back resumes only that thread', async () => {
+    const r = runnerWithGateway()
+    db.saveAgent(agent('a1', 'lia', { browser: true }))
+    db.createConversation({ id: 'd2', kind: 'dm', name: 'a1', members: ['a1'] })
+    const ask = (convId: string): Message => ({ id: `ask-${convId}`, conversationId: convId, author: { kind: 'agent', id: 'a1' }, text: 'Preciso de algo?', at: Date.now(), run: { status: 'waiting_input', depth: 1, steps: [] } })
+    db.saveMessage(ask('c1'))
+    db.saveMessage(ask('d2'))
+    await r.handedBack('a1', 'd2')
+    await r.idle()
+    expect(db.message('ask-d2')?.run?.status).toBe('done') // the handed-back thread went on
+    expect(db.message('ask-c1')?.run?.status).toBe('waiting_input') // the other thread wasn't touched
+    expect(db.messages().some((m) => m.conversationId === 'd2' && m.author.kind === 'agent' && m.id !== 'ask-d2')).toBe(true)
+    expect(db.messages().filter((m) => m.conversationId === 'c1' && m.author.kind === 'agent')).toHaveLength(1)
+  })
+
   it('leaves the question pending while the agents are paused', async () => {
     const r = runnerWithGateway()
     await r.send('c1', '@lia me pergunta o que faltar')
     await r.idle()
     const [asked] = agentMessages()
     r.setPaused(true)
-    await r.handedBack('a1')
+    await r.handedBack('a1', 'c1')
     await r.idle()
     expect(db.message(asked!.id)?.run?.status).toBe('waiting_input')
     expect(agentMessages()).toHaveLength(1)
@@ -494,10 +502,10 @@ describe('browser handback', () => {
 
   it('does nothing when nothing is pending or the agent is gone', async () => {
     const r = runnerWithGateway()
-    await r.handedBack('a1')
+    await r.handedBack('a1', 'c1')
     await r.idle()
     expect(claude.turns).toHaveLength(0)
-    await r.handedBack('ghost')
+    await r.handedBack('ghost', 'c1')
     await r.idle()
     expect(claude.turns).toHaveLength(0)
   })

@@ -190,9 +190,9 @@ const shots = new Map<string, { resolve: (b: Buffer) => void; reject: (e: Error)
 // Agents' browsers too (spec §24).
 const pages = new Map<string, { resolve: (r: BrowserReply) => void; reject: (e: Error) => void }>()
 process.parentPort.on('message', (e) => {
-  const r = e.data as { type?: string; id: string; data?: unknown; error?: string; awake?: boolean; agentId?: string; shown?: boolean } | undefined
+  const r = e.data as { type?: string; id: string; data?: unknown; error?: string; awake?: boolean; key?: string; shown?: boolean } | undefined
   if (r?.type === 'power') return routines.setAwake(r.awake === true)
-  if (r?.type === 'browser-shown') return browser.setShown(r.agentId ?? '', r.shown === true)
+  if (r?.type === 'browser-shown') return browser.setShown(r.key ?? '', r.shown === true)
   if (r?.type === 'browser-result') {
     const p = pages.get(r.id)
     pages.delete(r.id)
@@ -213,11 +213,11 @@ const shoot: Shooter = (opts) =>
     process.parentPort.postMessage({ type: 'screenshot', id, ...opts })
   })
 
-const electronHost: BrowserHost = (agentId, op, args) =>
+const electronHost: BrowserHost = (agentId, conversationId, op, args) =>
   new Promise((resolve, reject) => {
     const id = randomUUID()
     pages.set(id, { resolve, reject })
-    process.parentPort.postMessage({ type: 'browser', id, agentId, op, args })
+    process.parentPort.postMessage({ type: 'browser', id, agentId, conversationId, op, args })
     setTimeout(() => pages.get(id) && (pages.delete(id), reject(new Error(L('o navegador não respondeu em 60 s', "the browser didn't answer in 60 s")))), 60_000).unref()
   })
 // Google Chrome when the Mac has it (Google refuses logins in embedded browsers); Electron's Chromium otherwise.
@@ -225,12 +225,12 @@ const chrome =
   !fake && hasChrome()
     ? new ChromeBrowsers(
         join(dataDir, 'navegador'),
-        (agentId, shown) => browser.setShown(agentId, shown),
+        (key, shown) => browser.setShown(key, shown),
         undefined,
-        (agentId, jpeg) => browser.frame(agentId, jpeg)
+        (key, jpeg) => browser.frame(key, jpeg)
       )
     : undefined
-const host: BrowserHost = chrome ? (agentId, op, args) => chrome.run(agentId, op, args) : electronHost
+const host: BrowserHost = chrome ? (agentId, conversationId, op, args) => chrome.run(agentId, conversationId, op, args) : electronHost
 
 const secrets = new Secrets(db, fake ? plainCipher : mainCipher(process.parentPort))
 const browser = new Browser({
@@ -240,7 +240,7 @@ const browser = new Browser({
   emit,
   me: () => settings().workspaceName,
   jev: { key: () => secrets.get(JEV_SECRET), on: () => !!settings().browserJev && settings().jevKey === true },
-  onHandback: (agentId) => void runner.handedBack(agentId)
+  onHandback: (agentId, conversationId) => void runner.handedBack(agentId, conversationId)
 })
 const connectors = new ConnectorManager({
   db,
@@ -727,9 +727,9 @@ const api: Api = {
     void run().catch((e: unknown) => console.error('[computer]', e))
   },
   stopService: ({ agentId, name }) => void computers.stopService(agentId, name),
-  browserAction: ({ agentId, action }) => {
+  browserAction: ({ agentId, conversationId, action }) => {
     const agent = db.agent(agentId)
-    if (agent) void browser.action(agent, action).catch((e: unknown) => console.error('[navegador]', e))
+    if (agent) void browser.action(agent, action, conversationId).catch((e: unknown) => console.error('[navegador]', e))
   },
 
   // Lending or returning a folder remakes the computer with the new mounts (what it installed stays).

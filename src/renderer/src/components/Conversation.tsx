@@ -259,7 +259,7 @@ function MessageRow({ message, grouped }: { message: Message; grouped: boolean }
           </div>
         )}
         {agent && message.run?.services?.map((name) => <ServiceCard key={name} agentId={agent.id} name={name} />)}
-        {agent && message.run?.browser && <BrowserCard agentId={agent.id} big={liveBrowser} />}
+        {agent && message.run?.browser && <BrowserCard agentId={agent.id} conversationId={message.conversationId} big={liveBrowser} />}
         {message.run?.status === 'stopped' && <div className="note">{L('Interrompido por você.', 'Stopped by you.')}</div>}
         {message.run?.status === 'interrupted' && <div className="note">{L('Interrompido: o app fechou no meio da resposta.', 'Interrupted: the app closed in the middle of the reply.')}</div>}
         {message.run?.error && <div className="note note--error">{message.run.error}</div>}

@@ -80,7 +80,7 @@ export interface State {
 
 export type Dialog = { kind: 'members' | 'rename' | 'topic'; id: string } | { kind: 'archived' | 'new-channel' | 'search' }
 
-export type Panel = { kind: 'artifact'; id: string } | { kind: 'service'; agentId: string; name: string } | { kind: 'browser'; agentId: string }
+export type Panel = { kind: 'artifact'; id: string } | { kind: 'service'; agentId: string; name: string } | { kind: 'browser'; agentId: string; conversationId?: string }
 
 const initials = (name: string): string =>
   name
@@ -216,7 +216,9 @@ function apply(e: CoreEvent): void {
         return { ...s, computers: [...others, e.computer] }
       }
       case 'browser': {
-        const others = s.browsers.filter((b) => b.agentId !== e.view.agentId)
+        // A view with no conversation means the agent's tabs were cleared: all of them go.
+        if (!e.view.conversationId) return { ...s, browsers: s.browsers.filter((b) => b.agentId !== e.view.agentId) }
+        const others = s.browsers.filter((b) => b.agentId !== e.view.agentId || b.conversationId !== e.view.conversationId)
         return { ...s, browsers: [...others, e.view] }
       }
       case 'routine':
@@ -284,7 +286,11 @@ export const agentById = (s: State, id: string): Agent | undefined => s.agents.f
 export const modelById = (s: State, id: string): Model | undefined => s.models.find((m) => m.id === id) ?? modelInfo(id)
 export const pendingApprovals = (s: State): Approval[] => s.approvals.filter((a) => a.state === 'pending')
 export const computerOf = (s: State, agentId: string): ComputerInfo | undefined => s.computers.find((c) => c.agentId === agentId)
-export const browserOf = (s: State, agentId: string): BrowserView | undefined => s.browsers.find((b) => b.agentId === agentId)
+// The tab of this thread, or the agent's latest one when no thread was said.
+export const browserOf = (s: State, agentId: string, conversationId?: string): BrowserView | undefined => {
+  const mine = s.browsers.filter((b) => b.agentId === agentId)
+  return (conversationId ? mine.find((b) => b.conversationId === conversationId) : undefined) ?? mine.sort((a, b) => b.at - a.at)[0]
+}
 export const pendingMemories = (s: State): Memory[] => s.memories.filter((m) => m.state === 'pending')
 
 export function conversationTitle(s: State, c: Conversation): string {
@@ -415,7 +421,7 @@ export const setTab = (page: string, tab: string): void => set((s) => ({ ...s, t
 export const computerAction = (agentId: string, action: 'start' | 'restart' | 'erase' | 'open_folder' | 'refresh'): void =>
   void call('computerAction', { agentId, action })
 export const stopService = (agentId: string, name: string): void => void call('stopService', { agentId, name })
-export const browserAction = (agentId: string, action: 'show' | 'hide' | 'clear'): void => void call('browserAction', { agentId, action })
+export const browserAction = (agentId: string, action: 'show' | 'hide' | 'clear', conversationId?: string): void => void call('browserAction', { agentId, conversationId, action })
 export const openExternal = (url: string): void => void call('openExternal', { url })
 
 export const saveRoutine = (routine: RoutineInput): Promise<Routine> => call('saveRoutine', { routine })
