@@ -44,7 +44,13 @@ import { AgentProposal } from './Tuca'
 export function ConversationView({ id }: { id: string }): ReactNode {
   const conv = useStore((s) => s.conversations.find((c) => c.id === id))
   const title = useStore((s) => (conv ? conversationTitle(s, conv) : ''))
-  const members = useStore((s) => (conv ? conv.members.map((m) => agentById(s, m)).filter((a): a is Agent => !!a) : []))
+  // An archived agent stays in the channel for when it comes back, but it isn't in
+  // the room: out of the stack, the count and the @ list. A DM still shows whose it is.
+  const members = useStore((s) => {
+    if (!conv) return []
+    const all = conv.members.map((m) => agentById(s, m)).filter((a): a is Agent => !!a)
+    return conv.kind === 'dm' ? all : all.filter(isTeam)
+  })
   const messages = useStore((s) => s.messages.filter((m) => m.conversationId === id))
   const focus = useStore((s) => (s.view?.kind === 'conversation' && s.view.id === id ? s.view.message : undefined))
   const [showSummary, setShowSummary] = useState(false)
