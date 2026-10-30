@@ -5,9 +5,10 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { CoreEvent } from '../src/shared/rpc'
 import type { Agent, EngineId, Message, Settings } from '../src/shared/types'
 import { Db } from '../src/core/db'
-import { fakeEngine } from '../src/core/engines/fake'
+import { fakeEngine, callTool } from '../src/core/engines/fake'
 import type { Engine, Turn } from '../src/core/engines/types'
-import { Gateway } from '../src/core/gateway'
+import { Gateway, textResult } from '../src/core/gateway'
+import type { BrowserOutcome } from '../src/core/browser'
 import { Runner } from '../src/core/runs'
 
 const ready = { installed: true, loggedIn: true }
@@ -217,6 +218,97 @@ describe('Runner', () => {
     expect(stopped.text.length).toBeLessThan('uma resposta bem longa que demora pra chegar inteira'.length)
   })
 
+  it('a second trigger in the same thread queues as a follow-up and reads the reply ahead of it', async () => {
+    const r = runner(fakeEngine('claude', { delayMs: 40, reply: () => 'a resposta completa da primeira pergunta, com detalhes' }))
+    await r.send('d1', 'primeira')
+    await r.send('d1', 'segunda') // arrives while the first is still going
+    await new Promise((res) => setTimeout(res, 30))
+    const [first, second] = agentMessages()
+    expect(first!.run?.status).toBe('working')
+    expect(second!.run).toMatchObject({ status: 'queued', queuePos: 1 })
+    expect(events.some((e) => e.type === 'message' && e.message.id === second!.id && e.message.run?.status === 'queued')).toBe(true) // the bubble is born queued, not silent
+
+    await r.idle()
+    expect(db.message(first!.id)?.run?.status).toBe('done')
+    expect(db.message(second!.id)?.run?.status).toBe('done')
+    expect(claude.turns).toHaveLength(2)
+    expect(claude.turns[1]!.prompt).toContain('a resposta completa da primeira pergunta') // the follow-up saw the reply ahead of it
+  })
+
+  it('the same agent in two conversations still runs in parallel', async () => {
+    db.createConversation({ id: 'd2', kind: 'dm', name: 'a1', members: ['a1'] })
+    let open!: () => void
+    const gate = new Promise<void>((ok) => (open = ok))
+    let started = 0
+    const slow: Engine = {
+      id: 'claude',
+      run: () =>
+        (async function* () {
+          started++
+          await gate // the first turn holds until the test says so
+          yield { type: 'done' as const, text: 'ok', usage: { inputTokens: 1, cacheReadTokens: 0, outputTokens: 1 } }
+        })()
+    }
+    const r = runner(slow)
+    await r.send('d1', 'uma')
+    await r.send('d2', 'duas')
+    await new Promise((res) => setTimeout(res, 40))
+    expect(started).toBe(2) // different lanes: neither blocks the other
+    open()
+    await r.idle()
+    expect(agentMessages().every((m) => m.run?.status === 'done')).toBe(true)
+  })
+
+  it('cancelling a queued reply leaves the rest of the lane in order', async () => {
+    const r = runner(fakeEngine('claude', { delayMs: 40, reply: () => 'resposta sequencial longa o bastante' }))
+    await r.send('d1', 'um')
+    await r.send('d1', 'dois')
+    await r.send('d1', 'três')
+    const [first, second, third] = agentMessages()
+    expect(second!.run).toMatchObject({ status: 'queued', queuePos: 1 })
+    expect(third!.run).toMatchObject({ status: 'queued', queuePos: 2 })
+
+    r.cancelQueued(second!.id)
+    await r.idle()
+    expect(db.message(second!.id)?.run?.status).toBe('stopped')
+    expect(db.message(second!.id)?.text).toContain('cancelou')
+    expect(db.message(first!.id)?.run?.status).toBe('done')
+    expect(db.message(third!.id)?.run?.status).toBe('done')
+    expect(claude.turns).toHaveLength(2) // the cancelled one never started
+  })
+
+  it('"Mandar agora" stops the running reply and takes the lane next', async () => {
+    const r = runner(fakeEngine('claude', { delayMs: 40, reply: () => 'trabalho longo que vai ser interrompido no meio' }))
+    await r.send('d1', 'um')
+    await r.send('d1', 'dois')
+    await new Promise((res) => setTimeout(res, 30))
+    const [first, second] = agentMessages()
+    expect(first!.run?.status).toBe('working')
+
+    r.jump(second!.id)
+    await r.idle()
+    expect(db.message(first!.id)?.run?.status).toBe('stopped') // the partial stays
+    expect(db.message(second!.id)?.run?.status).toBe('done')
+    expect(claude.turns).toHaveLength(2)
+  })
+
+  it('"Parar" drops what is queued behind the run it stops', async () => {
+    const r = runner(fakeEngine('claude', { delayMs: 40, reply: () => 'trabalho longo que vai ser interrompido' }))
+    await r.send('d1', 'um')
+    await r.send('d1', 'dois')
+    await r.send('d1', 'três')
+    await new Promise((res) => setTimeout(res, 30))
+    const [first, second, third] = agentMessages()
+    expect(first!.run?.status).toBe('working')
+
+    r.stop(first!.id)
+    await r.idle()
+    expect(db.message(first!.id)?.run?.status).toBe('stopped')
+    expect(db.message(second!.id)?.run?.status).toBe('stopped')
+    expect(db.message(third!.id)?.run?.status).toBe('stopped')
+    expect(claude.turns).toHaveLength(1) // nothing queued started
+  })
+
   it('fails fast when the engine is not logged in, without starting it', async () => {
     settings.engines.claude = { installed: true, loggedIn: false }
     const r = runner()
@@ -292,5 +384,58 @@ describe('ask_user through the gateway', () => {
     expect((replies[1]!.author as { id: string }).id).toBe('a1')
     expect(claude.turns[1]?.prompt).toContain('pergunta enviada a Edu pela ferramenta ask_user: Pra quando você precisa disso?')
     expect(db.messages().some((m) => m.text.startsWith('Chamei'))).toBe(false)
+  })
+
+  it('the same agent in two conversations waits for the browser instead of stealing the tab', async () => {
+    db.saveAgent(agent('a1', 'lia', { browser: true }))
+    db.createConversation({ id: 'd2', kind: 'dm', name: 'a1', members: ['a1'] })
+    const order: string[] = []
+    let open!: () => void
+    const gate = new Promise<void>((ok) => (open = ok))
+    // The first turn opens the page and then sits on the gate, still holding the
+    // browser; the second turn must wait for the whole run, not just the call.
+    const browserEngine: Engine = {
+      id: 'claude',
+      async *run(turn) {
+        await callTool(turn.mcpUrl!, 'navegador_abrir', { url: 'https://exemplo.test' })
+        await gate
+        yield { type: 'done' as const, text: 'ok', usage: { inputTokens: 1, cacheReadTokens: 0, outputTokens: 1 } }
+      }
+    }
+    const fakeBrowser = {
+      call: async (_agent: unknown, _name: string, _args: Record<string, unknown>, ctx: { messageId: string }): Promise<BrowserOutcome> => {
+        order.push(`start:${ctx.messageId}`)
+        await new Promise((res) => setTimeout(res, 40))
+        order.push(`end:${ctx.messageId}`)
+        return { result: textResult('página aberta') }
+      },
+      approved: async () => ({ ok: true, text: '' })
+    }
+    claude = counted(browserEngine)
+    const r = new Runner({
+      db,
+      engines: { claude, codex: fakeEngine('codex', { delayMs: 1 }), opencode: fakeEngine('opencode'), pi: fakeEngine('pi') },
+      settings: async () => settings,
+      emit: (e) => events.push(e),
+      workDir: mkdtempSync(join(tmpdir(), 'ad-work-')),
+      gateway,
+      browser: fakeBrowser
+    })
+    await r.send('d1', 'abre a página')
+    await r.send('d2', 'abre também')
+    await new Promise((res) => setTimeout(res, 90))
+    expect(claude.turns).toHaveLength(2) // both runs are alive: the lanes are different
+    const ids = order.map((o) => o.split(':')[1]!)
+    expect(order).toHaveLength(2) // one call in the tab, the other held with its run
+    expect(new Set(ids).size).toBe(1)
+    expect(order[1]).toBe(`end:${ids[0]}`)
+
+    open()
+    await r.idle()
+    expect(order).toHaveLength(4)
+    const other = order.map((o) => o.split(':')[1]!).find((id) => id !== ids[0])!
+    expect(order[2]).toBe(`start:${other}`) // the held call runs only after the first run let go
+    expect(order[3]).toBe(`end:${other}`)
+    expect(agentMessages().every((m) => m.run?.status === 'done')).toBe(true)
   })
 })

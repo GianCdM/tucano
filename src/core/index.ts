@@ -60,6 +60,8 @@ if (db.created) {
 }
 const interrupted = db.interruptStaleRuns()
 if (interrupted) console.log(`[core] ${interrupted} run(s) marked as interrupted`)
+// Queued replies never started: the app was closed on them. They leave the queue.
+const staleQueued = db.messages().filter((m) => m.author.kind === 'agent' && m.run?.status === 'queued')
 
 const user = userInfo().username
 const DEFAULTS: Omit<Settings, 'engines'> = {
@@ -314,6 +316,7 @@ const runner = new Runner({
   }
 })
 runner.setPaused(!!settings().paused)
+for (const m of staleQueued) runner.cancelQueued(m.id, 'app')
 // Installs from before the Tuca get him at the first start after the introduction.
 void ready.then(() => {
   if (settings().onboarding?.done) ensureTuca()
@@ -486,6 +489,10 @@ const api: Api = {
 
   stopRun: ({ messageId }) => runner.stop(messageId),
 
+  jumpRun: ({ messageId }) => runner.jump(messageId),
+
+  cancelRun: ({ messageId }) => runner.cancelQueued(messageId),
+
   retryRun: ({ messageId }) => runner.retry(messageId),
 
   continueRun: ({ messageId }) => void runner.continue(messageId),
@@ -519,7 +526,7 @@ const api: Api = {
     const agent = db.agent(id)
     if (!agent || agent.archived === archived) return
     if (archived) {
-      for (const m of db.messages()) if (m.author.kind === 'agent' && m.author.id === id && (m.run?.status === 'working' || m.run?.status === 'waiting_approval')) runner.stop(m.id)
+      for (const m of db.messages()) if (m.author.kind === 'agent' && m.author.id === id && (m.run?.status === 'working' || m.run?.status === 'waiting_approval' || m.run?.status === 'queued')) runner.stop(m.id)
       routines.pauseAgent(id)
       if (agent.browser) void browser.close(id)
     }
@@ -551,7 +558,7 @@ const api: Api = {
   // its routines, its pending approvals.
   deleteConversation: ({ id }) => {
     if (!db.conversation(id)) return
-    for (const m of db.messages()) if (m.conversationId === id && (m.run?.status === 'working' || m.run?.status === 'waiting_approval')) runner.stop(m.id)
+    for (const m of db.messages()) if (m.conversationId === id && (m.run?.status === 'working' || m.run?.status === 'waiting_approval' || m.run?.status === 'queued')) runner.stop(m.id)
     for (const r of db.routines()) if (r.conversationId === id) routines.remove(r.id)
     for (const a of db.approvals()) if (a.conversationId === id && a.state === 'pending' && db.decideApproval(a.id, 'expired', L('O canal foi excluído.', 'The channel was deleted.'))) emit({ type: 'approval', approval: db.approvals().find((x) => x.id === a.id)! })
     db.deleteConversation(id)

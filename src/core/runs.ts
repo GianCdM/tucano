@@ -118,10 +118,16 @@ export interface RoutineEvent {
 
 type Control = { ctl: AbortController; reason?: 'stopped' | 'limit' | 'budget' | 'loop' | 'errors' | 'stall' }
 
+// A run waiting for its turn in the queue: its lane is (conversation, agent).
+type Job = { lane: string; msgId: string; run: () => Promise<unknown> }
+
 export class Runner {
-  private queue: (() => Promise<unknown>)[] = []
+  private queue: Job[] = []
   private active = 0
   private routing = 0
+  private lanes = new Map<string, number>() // lane -> it has a run going
+  private laneRun = new Map<string, string>() // lane -> the reply it's working on ("Mandar agora")
+  private browserTail = new Map<string, Promise<void>>() // agentId -> the tail of its browser lock
   private controllers = new Map<string, Control>()
   private paused = false // "Pausar tudo": nobody starts working until it's off
   private idleWaiters: (() => void)[] = []
@@ -172,7 +178,7 @@ export class Runner {
         return
       }
     }
-    for (const agent of responders) this.enqueue(() => this.execute(agent, conv, { depth: 1 }))
+    for (const agent of responders) void this.launch(agent, conv, { depth: 1 })
   }
 
   // An image I attached, kept in the artifact store with my message (no agent made it).
@@ -191,11 +197,54 @@ export class Runner {
     this.deps.emit({ type: 'artifact', artifact })
   }
 
+  // "Parar" on a working reply (or deleting an agent/conversation): it stops the
+  // run and drops what is queued behind it in the same lane, so nothing of that
+  // thread starts the moment this one dies.
   stop(messageId: string): void {
     const c = this.controllers.get(messageId)
-    if (!c) return
-    c.reason = 'stopped'
-    c.ctl.abort()
+    if (c) {
+      c.reason = 'stopped'
+      c.ctl.abort()
+    }
+    const msg = this.deps.db.message(messageId)
+    if (msg?.author.kind === 'agent') this.dropLane(`${msg.conversationId}:${msg.author.id}`)
+  }
+
+  private dropLane(lane: string): void {
+    for (const j of [...this.queue]) if (j.lane === lane) this.cancelQueued(j.msgId)
+  }
+
+  // A queued reply leaves the queue: its X on the bubble, "Parar" on the lane,
+  // or the app closing before it ever started.
+  cancelQueued(messageId: string, why: 'cancel' | 'app' = 'cancel'): void {
+    const i = this.queue.findIndex((j) => j.msgId === messageId)
+    if (i !== -1) {
+      this.queue.splice(i, 1)
+      this.refreshQueue()
+    }
+    const m = this.deps.db.message(messageId)
+    if (m?.run?.status === 'queued')
+      this.update(m, {
+        text: why === 'app' ? L('O app foi fechado antes desta resposta começar.', 'The app was closed before this reply started.') : L('Você cancelou esta resposta da fila.', 'You cancelled this reply from the queue.'),
+        run: { ...m.run, status: 'stopped', steps: [], queuePos: undefined }
+      })
+  }
+
+  // "Mandar agora": to the front of the queue. If its lane is working, that run
+  // is stopped (its partial text stays) and this one takes the lane right after.
+  jump(messageId: string): void {
+    const i = this.queue.findIndex((j) => j.msgId === messageId)
+    if (i === -1) return
+    const job = this.queue.splice(i, 1)[0]!
+    this.queue.unshift(job)
+    const running = this.laneRun.get(job.lane)
+    const c = running ? this.controllers.get(running) : undefined
+    if (c) {
+      c.reason = 'stopped'
+      c.ctl.abort()
+    }
+    this.refreshQueue()
+    this.pump()
   }
 
   // Runs the same agent again in place of a reply that didn't finish.
@@ -206,7 +255,7 @@ export class Runner {
     const agent = db.agent(msg.author.id)
     const conv = db.conversation(msg.conversationId)
     if (!agent || !conv) return
-    this.enqueue(() => this.execute(agent, conv, { depth: msg.run!.depth ?? 1, existing: msg }))
+    this.launch(agent, conv, { depth: msg.run!.depth ?? 1, existing: msg })
   }
 
   // A reply paused at its budget goes on in a new reply that knows what it did:
@@ -234,7 +283,7 @@ export class Runner {
     ]
       .filter(Boolean)
       .join('\n\n')
-    this.enqueue(() => this.execute(agent, conv, { depth: msg.run!.depth ?? 1, task, work: msg.run!.work }))
+    this.launch(agent, conv, { depth: msg.run!.depth ?? 1, task, work: msg.run!.work })
   }
 
   // Posts a routine's request in its conversation and runs its agent on it.
@@ -281,14 +330,7 @@ export class Runner {
     ]
       .filter(Boolean)
       .join(' ')
-    return new Promise((resolve) =>
-      this.enqueue(() =>
-        this.execute(agent, conv, { depth: 1, task, work: event ? workIn(event.title) : undefined, routine: true }).then(resolve, (e: unknown) => {
-          resolve(undefined)
-          throw e
-        })
-      )
-    )
+    return this.launch(agent, conv, { depth: 1, task, work: event ? workIn(event.title) : undefined, routine: true }).catch(() => undefined)
   }
 
   // Resolves when nothing is routing, running or queued (tests and shutdown).
@@ -375,27 +417,78 @@ export class Runner {
     const why = reason ? ` · ${reason}` : ''
     if (agents.length === 0) return void this.update(note, { text: `${L('Ninguém precisa responder', 'No one needs to answer')}${why}`, run: undefined })
     this.update(note, { text: `${L('Chamei', 'Called')} ${agents.map((a) => `**${a.name}**`).join(L(' e ', ' and '))}${why}`, run: undefined })
-    for (const agent of agents) this.enqueue(() => this.execute(agent, conv, { depth: 1 }))
+    for (const agent of agents) void this.launch(agent, conv, { depth: 1 })
   }
 
-  private enqueue(job: () => Promise<unknown>): void {
+  // Everything that starts a run goes through here. The reply's bubble is born
+  // right away as 'queued' — waiting is never invisible — and the run starts
+  // when two doors open together: a global slot (MAX_CONCURRENT) and its lane,
+  // one run per (conversation, agent). A second trigger in the same thread
+  // becomes a follow-up in order, never a second run of the same agent.
+  private launch(agent: Agent, conv: Conversation, opts: { depth: number; existing?: Message; task?: string; work?: string; routine?: boolean }): Promise<Message> {
+    const lane = `${conv.id}:${agent.id}`
+    const msg: Message =
+      opts.existing ?? { id: randomUUID(), conversationId: conv.id, author: { kind: 'agent', id: agent.id }, text: '', at: Date.now(), run: { status: 'queued', depth: opts.depth, steps: [] } }
+    if (!opts.existing) {
+      this.deps.db.saveMessage(msg)
+      this.deps.emit({ type: 'message', message: msg })
+    } else if (msg.run && msg.run.status !== 'queued') {
+      this.update(msg, { run: { ...msg.run, status: 'queued', steps: [], queuePos: undefined } })
+    }
+    return new Promise<Message>((resolve, reject) => this.enqueue({ lane, msgId: msg.id, run: () => this.execute(agent, conv, { ...opts, existing: msg }).then(resolve, reject) }))
+  }
+
+  private enqueue(job: Job): void {
     this.queue.push(job)
     this.pump()
   }
 
   private pump(): void {
     while (this.active < MAX_CONCURRENT && this.queue.length > 0) {
-      const job = this.queue.shift()!
+      const i = this.queue.findIndex((j) => !this.lanes.get(j.lane)) // a busy lane waits its turn; other agents go ahead
+      if (i === -1) break
+      const job = this.queue.splice(i, 1)[0]!
+      this.lanes.set(job.lane, 1)
+      this.laneRun.set(job.lane, job.msgId)
       if (this.active++ === 0) this.deps.onBusy?.(true)
-      void job()
+      void job
+        .run()
         .catch((e: unknown) => console.error('[runner]', e))
         .finally(() => {
           this.active--
+          this.lanes.delete(job.lane)
+          if (this.laneRun.get(job.lane) === job.msgId) this.laneRun.delete(job.lane)
           this.pump()
           if (this.active === 0) this.deps.onBusy?.(false)
+          this.refreshQueue()
           this.checkIdle()
         })
     }
+    this.refreshQueue()
+  }
+
+  // Where each queued reply stands, so its bubble can say "Na fila · 2º".
+  private refreshQueue(): void {
+    const ahead = new Map<string, number>()
+    for (const j of this.queue) {
+      const n = (ahead.get(j.lane) ?? 0) + 1
+      ahead.set(j.lane, n)
+      const pos = this.lanes.get(j.lane) ? n : 0 // lane idle: it's the global pool that's full
+      const m = this.deps.db.message(j.msgId)
+      if (m?.run && m.run.queuePos !== pos) this.update(m, { run: { ...m.run, queuePos: pos } })
+    }
+  }
+
+  // The agent's browser is one tab with one set of logins: the first browser
+  // call of a run holds it until the run ends, so another run of the same agent
+  // waits for the tab instead of stealing the page in the middle of a task.
+  private async holdBrowser(agentId: string): Promise<{ waited: boolean; release: () => void }> {
+    const prev = this.browserTail.get(agentId)
+    let release!: () => void
+    const mine = new Promise<void>((ok) => (release = ok))
+    this.browserTail.set(agentId, mine)
+    if (prev) await prev
+    return { waited: !!prev, release }
   }
 
   private async execute(agent: Agent, conv: Conversation, opts: { depth: number; existing?: Message; task?: string; work?: string; routine?: boolean }): Promise<Message> {
@@ -461,11 +554,14 @@ export class Runner {
     const members = this.members(conv)
     const peers = members.filter((a) => a.id !== agent.id)
     const memory = this.deps.memory
-    const { summary, messages: history } = memory?.window(db.conversation(conv.id) ?? conv, msg) ?? {
+    // The context is cut when the run starts, not when its bubble was born
+    // queued: a follow-up sees everything up to here, the reply ahead of it included.
+    const before = { ...msg, at: started }
+    const { summary, messages: history } = memory?.window(db.conversation(conv.id) ?? conv, before) ?? {
       summary: undefined,
       messages: db
         .recentMessages(conv.id, HISTORY_LIMIT + 40)
-        .filter((m) => m.id !== msg.id && m.at <= msg.at)
+        .filter((m) => m.id !== before.id && m.at <= before.at)
         .slice(-HISTORY_LIMIT)
     }
     // What this reply counts toward: given (a chain, a routine's issue), or an issue named in the message it answers.
@@ -485,6 +581,7 @@ export class Runner {
 
     const control: Control = { ctl: new AbortController() }
     this.controllers.set(msg.id, control)
+    let browserHold: { waited: boolean; release: () => void } | undefined
     const halt = (reason: NonNullable<Control['reason']>): void => {
       if (control.reason) return
       control.reason = reason
@@ -726,6 +823,14 @@ export class Runner {
           flush()
           msg.run = { ...msg.run!, browser: true, steps: [...closeThinking('done', THOUGHT()), step] }
           save()
+          browserHold ??= await this.holdBrowser(agent.id)
+          if (browserHold.waited) {
+            const waiting = { ...step, label: L('Aguardando o navegador', 'Waiting for the browser'), detail: L('a aba dele está ocupada em outra conversa', 'his tab is busy in another conversation') }
+            msg.run = { ...msg.run!, steps: msg.run!.steps.map((s) => (s.id === step.id ? waiting : s)) }
+            save()
+            msg.run = { ...msg.run!, steps: msg.run!.steps.map((s) => (s.id === step.id ? step : s)) }
+            save()
+          }
           const out = await browser.call(current, name, args, { conversationId: conv.id, messageId: msg.id })
           if (out.artifact) artifactIds.push(out.artifact.id)
           const close = (status: Step['status'], patch: Partial<Step> = {}): Step[] => msg.run!.steps.map((s) => (s.id === step.id ? { ...s, ...patch, status, ms: Date.now() - t0 } : s))
@@ -1027,6 +1132,7 @@ export class Runner {
       clearInterval(stall)
       flush()
       session?.close()
+      browserHold?.release()
       this.controllers.delete(msg.id)
     }
 
@@ -1235,7 +1341,7 @@ export class Runner {
         }
       })
     }
-    if (agent && conv && !agent.archived) this.enqueue(() => this.execute(agent, conv, { depth: 1, task, work: msg?.run?.work }))
+    if (agent && conv && !agent.archived) void this.launch(agent, conv, { depth: 1, task, work: msg?.run?.work })
   }
 
   async expireApprovals(): Promise<void> {
@@ -1253,7 +1359,7 @@ export class Runner {
       this.post(conv.id, L(`Parei a conversa entre agentes aqui: foram ${MAX_DEPTH} respostas seguidas. Mande uma mensagem pra continuar.`, `I stopped the conversation between agents here: ${MAX_DEPTH} replies in a row. Send a message to go on.`))
       return false
     }
-    for (const a of next) this.enqueue(() => this.execute(a, conv, { depth: depth + 1, work: msg.run?.work }))
+    for (const a of next) void this.launch(a, conv, { depth: depth + 1, work: msg.run?.work })
     return true
   }
 }

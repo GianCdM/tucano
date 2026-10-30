@@ -127,7 +127,7 @@ export interface Receipt {
   apiCostUsd?: number // what the same usage would cost on the API, when the CLI reports it
 }
 
-export type RunStatus = 'working' | 'waiting_input' | 'waiting_approval' | 'done' | 'stopped' | 'limit_reached' | 'failed' | 'interrupted' | 'paused'
+export type RunStatus = 'queued' | 'working' | 'waiting_input' | 'waiting_approval' | 'done' | 'stopped' | 'limit_reached' | 'failed' | 'interrupted' | 'paused'
 
 export interface Run {
   status: RunStatus
@@ -142,6 +142,7 @@ export interface Run {
   services?: string[] // services started in this reply, by name, on the author's computer
   routineIds?: string[] // routines scheduled or changed with `agendar_rotina` in this reply
   browser?: boolean // used its browser in this reply (the message links to the live view)
+  queuePos?: number // 'queued': its place in its lane (1 = next after the running one); 0 = waiting for a global slot
   budget?: number // 'paused': the per-reply budget it reached, in counted tokens
   work?: string // the piece of work it counts toward, e.g. the issue "OAB-65" (spec §20)
   agentDraft?: AgentDraft // an agent the Tuca proposed with propor_agente, shown as a card

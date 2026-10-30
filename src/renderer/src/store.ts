@@ -384,6 +384,8 @@ export const sendMessage = (conversationId: string, text: string, images: ImageU
 }
 
 export const stopRun = (messageId: string): void => void call('stopRun', { messageId })
+export const jumpRun = (messageId: string): void => void call('jumpRun', { messageId })
+export const cancelRun = (messageId: string): void => void call('cancelRun', { messageId })
 export const retryRun = (messageId: string): void => void call('retryRun', { messageId })
 export const continueRun = (messageId: string): void => void call('continueRun', { messageId })
 

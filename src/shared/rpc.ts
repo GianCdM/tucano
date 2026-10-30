@@ -24,6 +24,8 @@ export interface Api {
   artifactText(p: { id: string }): string | null // a text file an agent showed (Markdown, CSV, code), for the side panel
   sendMessage(p: { conversationId: string; text: string; images?: ImageUpload[] }): void
   stopRun(p: { messageId: string }): void
+  jumpRun(p: { messageId: string }): void // a queued reply skips ahead of its lane's queue
+  cancelRun(p: { messageId: string }): void // a queued reply leaves the queue
   retryRun(p: { messageId: string }): void
   continueRun(p: { messageId: string }): void // a reply paused at its budget goes on
   saveAgent(p: { agent: Agent; channelIds: string[] }): void
