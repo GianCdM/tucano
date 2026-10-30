@@ -43,6 +43,11 @@ describe('mentioned', () => {
     expect(mentioned('```\ncódigo\n```\nfala com @lia', [lia]).map((a) => a.id)).toEqual(['a1'])
     expect(mentioned('bloco:\n```\n@lia sem fechar', [lia])).toEqual([])
   })
+
+  it('ignores a fenced block shown inside a longer fence', () => {
+    expect(mentioned('````\n```\n@lia revisa\n```\n````\nfala com @lia', [lia]).map((a) => a.id)).toEqual(['a1'])
+    expect(mentioned('````md\n```\n@lia revisa\n```\n````', [lia])).toEqual([])
+  })
 })
 
 describe('systemPrompt', () => {

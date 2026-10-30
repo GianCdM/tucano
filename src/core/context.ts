@@ -270,7 +270,8 @@ export function transcriptBlocks(opts: TranscriptOpts): { blocks: string[]; bloc
 
 // @handles in the text that belong to the given agents, in order of appearance.
 // Handles inside code (fenced or inline) are quoted content, not a call — e.g. a prompt shown in a fenced block.
-const CODE_SPANS = /```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`/g
+// A fence closes on the same run of backticks or tildes it opened with, so a ```` block can show a ``` one.
+const CODE_SPANS = /(`{3,}|~{3,})[\s\S]*?(?:\1|$)|`[^`\n]*`/g
 
 export function mentioned(text: string, agents: Agent[]): Agent[] {
   const found: Agent[] = []
