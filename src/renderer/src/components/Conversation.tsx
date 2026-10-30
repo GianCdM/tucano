@@ -1,4 +1,5 @@
 import { L } from '../../../shared/lang'
+import { CODE_SPANS } from '../../../shared/types'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -44,7 +45,13 @@ import { AgentProposal } from './Tuca'
 export function ConversationView({ id }: { id: string }): ReactNode {
   const conv = useStore((s) => s.conversations.find((c) => c.id === id))
   const title = useStore((s) => (conv ? conversationTitle(s, conv) : ''))
-  const members = useStore((s) => (conv ? conv.members.map((m) => agentById(s, m)).filter((a): a is Agent => !!a) : []))
+  // An archived agent stays in the channel for when it comes back, but it isn't in
+  // the room: out of the stack, the count and the @ list. A DM still shows whose it is.
+  const members = useStore((s) => {
+    if (!conv) return []
+    const all = conv.members.map((m) => agentById(s, m)).filter((a): a is Agent => !!a)
+    return conv.kind === 'dm' ? all : all.filter(isTeam)
+  })
   const messages = useStore((s) => s.messages.filter((m) => m.conversationId === id))
   const focus = useStore((s) => (s.view?.kind === 'conversation' && s.view.id === id ? s.view.message : undefined))
   const [showSummary, setShowSummary] = useState(false)
@@ -227,7 +234,7 @@ function MessageRow({ message, grouped }: { message: Message; grouped: boolean }
         {message.run && <RunSteps message={message} />}
         {message.text ? (
           <div className="md">
-            <Markdown remarkPlugins={[remarkGfm]}>{highlightMentions(message.text)}</Markdown>
+            <Markdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock }}>{highlightMentions(message.text)}</Markdown>
           </div>
         ) : null}
         {attached.length > 0 && (
@@ -303,10 +310,31 @@ function RoutineMessage({ message }: { message: Message }): ReactNode {
           </div>
         )}
         <div className="md">
-          <Markdown remarkPlugins={[remarkGfm]}>{highlightMentions(message.text)}</Markdown>
+          <Markdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock }}>{highlightMentions(message.text)}</Markdown>
         </div>
       </div>
     </article>
+  )
+}
+
+// Fenced code block in a chat message, with a copy button on the top right.
+function CodeBlock({ children }: { children?: ReactNode }): ReactNode {
+  const ref = useRef<HTMLPreElement>(null)
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="md-code">
+      <pre ref={ref}>{children}</pre>
+      <button
+        className="icon-btn icon-btn--sm md-code__copy"
+        title={L(copied ? 'Copiado' : 'Copiar', copied ? 'Copied' : 'Copy')}
+        aria-label={L(copied ? 'Copiado' : 'Copiar código', copied ? 'Copied' : 'Copy code')}
+        onClick={() =>
+          void navigator.clipboard.writeText(ref.current?.textContent ?? '').then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))
+        }
+      >
+        <Icon name={copied ? 'check' : 'copy'} size={13} />
+      </button>
+    </div>
   )
 }
 
@@ -428,7 +456,17 @@ function QuestionCard({ question, answered }: { question: string; answered: bool
   )
 }
 
-const highlightMentions = (text: string): string => text.replace(/(^|\s)@([a-z0-9_-]{2,32})/gi, '$1**@$2**')
+// A @handle in code is not bolded (CODE_SPANS, the core's rule too): the box shows and copies the real text.
+const boldMentions = (t: string): string => t.replace(/(^|\s)@([a-z0-9_-]{2,32})/gi, '$1**@$2**')
+const highlightMentions = (text: string): string => {
+  let out = ''
+  let last = 0
+  for (const m of text.matchAll(CODE_SPANS)) {
+    out += boldMentions(text.slice(last, m.index)) + m[0]
+    last = m.index! + m[0].length
+  }
+  return out + boldMentions(text.slice(last))
+}
 
 // Now, every second while `on`: the clock of a reply at work.
 function useNow(on: boolean): number {
