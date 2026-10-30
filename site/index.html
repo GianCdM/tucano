@@ -125,6 +125,12 @@ header .btn { height: 40px; padding: 0 18px; font-size: 14.5px; }
 .hero .lead { margin-top: 30px; max-width: 520px; }
 .hero .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 38px; }
 .hero .fine { margin-top: 22px; font-size: 14px; color: var(--ink-3); }
+.also { font-size: 14px; color: var(--ink-3); }
+.also a { color: var(--ink-2); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(20, 15, 5, .25); }
+.also a:hover { color: var(--ink); text-decoration-color: currentColor; }
+.hero .also { flex-basis: 100%; margin-top: -4px; }
+.end .also { color: #8C8478; }
+.end .also a { color: #EDE7DA; text-decoration-color: rgba(237, 231, 218, .3); }
 .hero .fine b { color: var(--ink-2); font-weight: 600; }
 
 .hero__grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 40px; align-items: center; }
@@ -520,6 +526,7 @@ if (/(^|\.)tucano\.sh$/.test(location.hostname)) {
       <p class="lead rv"><span lang="pt-BR">Agentes que conversam em canais, programam, revisam um ao outro e usam as ferramentas do seu time. Eles fazem o trabalho; o que mexe no mundo espera o seu sim.</span><span lang="en">Agents that talk in channels, write code, review each other and use your team’s tools. They do the work; anything that touches the real world waits for your yes.</span></p>
       <div class="actions rv">
         <a class="btn btn--beak" data-dl href="https://github.com/eduwxyz/tucano/releases/latest/download/tucano-mac-arm64.dmg"><span lang="pt-BR">Baixar pro Mac</span><span lang="en">Download for Mac</span></a>
+        <p class="also"><span lang="pt-BR">Também pra </span><span lang="en">Also for </span><a data-dl data-os="windows" href="https://github.com/eduwxyz/tucano/releases/latest/download/tucano-win-x64.exe">Windows</a><span lang="pt-BR"> e </span><span lang="en"> and </span><a data-dl data-os="linux" href="https://github.com/eduwxyz/tucano/releases/latest/download/tucano-linux-amd64.deb">Linux</a></p>
         <div class="cmd"><code><b>curl</b> -fsSL <span>…/releases/latest/download/</span>install.sh | sh</code><button class="copy" data-copy="curl -fsSL https://github.com/eduwxyz/tucano/releases/latest/download/install.sh | sh">Copiar</button></div>
         <a class="btn btn--ghost" href="#ao-vivo"><span lang="pt-BR">Ver ao vivo ↓</span><span lang="en">Watch it live ↓</span></a>
       </div>
@@ -786,6 +793,7 @@ if (/(^|\.)tucano\.sh$/.test(location.hostname)) {
       <h2 class="h2 rv"><span lang="pt-BR">Bote o time pra <em>voar.</em></span><span lang="en">Let the team <em>take flight.</em></span></h2>
       <div class="acts rv">
         <a class="btn btn--beak" data-dl href="https://github.com/eduwxyz/tucano/releases/latest/download/tucano-mac-arm64.dmg"><span lang="pt-BR">Baixar pro Mac</span><span lang="en">Download for Mac</span></a>
+        <p class="also"><span lang="pt-BR">Também pra </span><span lang="en">Also for </span><a data-dl data-os="windows" href="https://github.com/eduwxyz/tucano/releases/latest/download/tucano-win-x64.exe">Windows</a><span lang="pt-BR"> e </span><span lang="en"> and </span><a data-dl data-os="linux" href="https://github.com/eduwxyz/tucano/releases/latest/download/tucano-linux-amd64.deb">Linux</a></p>
         <div class="cmd"><code><b>curl</b> -fsSL <span>…/releases/latest/download/</span>install.sh | sh</code><button class="copy" data-copy="curl -fsSL https://github.com/eduwxyz/tucano/releases/latest/download/install.sh | sh">Copiar</button></div>
         <a class="btn btn--ghost" style="color:#EDE7DA;box-shadow:inset 0 0 0 1.5px #3A3631" href="https://github.com/eduwxyz/tucano"><img src="assets/logos/github.svg" alt="" style="filter:invert(1)"><span lang="pt-BR">Ver no GitHub</span><span lang="en">View on GitHub</span></a>
       </div>
@@ -1071,10 +1079,15 @@ setLang(LANG)
 <script>
 // The main download button fits the visitor's computer: the .dmg on a Mac, the .deb on Linux
 // (ARM64 when the browser says so), the installer on Windows, where the command to copy is
-// PowerShell's. "Every format" keeps all of them.
+// PowerShell's. "Also for" under it names the other two systems. "Every format" keeps all of them.
 ;(() => {
   const ua = navigator.userAgent
+  const mac = (os) => document.querySelectorAll(`.also a[data-os="${os}"]`).forEach((a) => {
+    a.href = 'https://github.com/eduwxyz/tucano/releases/latest/download/tucano-mac-arm64.dmg'
+    a.textContent = 'Mac'
+  })
   if (/Windows NT/.test(ua)) {
+    mac('windows')
     document.querySelectorAll('a.btn[data-dl]').forEach((a) => {
       a.href = a.href.replace('tucano-mac-arm64.dmg', 'tucano-win-x64.exe')
       a.querySelector('[lang="pt-BR"]').textContent = 'Baixar pro Windows'
@@ -1088,6 +1101,7 @@ setLang(LANG)
     return
   }
   if (!/Linux|X11/.test(ua) || /Android/.test(ua)) return
+  mac('linux')
   const file = /aarch64|arm64/i.test(ua) ? 'tucano-linux-arm64.deb' : 'tucano-linux-amd64.deb'
   document.querySelectorAll('a.btn[data-dl]').forEach((a) => {
     a.href = a.href.replace('tucano-mac-arm64.dmg', file)
