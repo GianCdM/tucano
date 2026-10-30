@@ -2,7 +2,7 @@
 // and a prompt with the conversation transcript. The CLI keeps no session
 // between turns, so everything the agent knows comes from here.
 import { L, lang, locale } from '../shared/lang'
-import { describeSchedule, PROJECTS_DIR, type Agent, type Conversation, type Memory, type Message, type Routine, type Settings, type Skill } from '../shared/types'
+import { CODE_SPANS, describeSchedule, PROJECTS_DIR, type Agent, type Conversation, type Memory, type Message, type Routine, type Settings, type Skill } from '../shared/types'
 import { osOf, shellCommand, systemName } from './platform'
 
 export const HISTORY_LIMIT = 30
@@ -268,11 +268,8 @@ export function transcriptBlocks(opts: TranscriptOpts): { blocks: string[]; bloc
   return { blocks, blockOf }
 }
 
-// @handles in the text that belong to the given agents, in order of appearance.
-// Handles inside code (fenced or inline) are quoted content, not a call — e.g. a prompt shown in a fenced block.
-// A fence closes on the same run of backticks or tildes it opened with, so a ```` block can show a ``` one.
-const CODE_SPANS = /(`{3,}|~{3,})[\s\S]*?(?:\1|$)|`[^`\n]*`/g
-
+// @handles in the text that belong to the given agents, in order of appearance. Handles inside
+// code are quoted content, not a call (CODE_SPANS): a prompt shown in a fenced block, say.
 export function mentioned(text: string, agents: Agent[]): Agent[] {
   const found: Agent[] = []
   for (const m of text.replace(CODE_SPANS, ' ').matchAll(/(^|[^\w@])@([a-z0-9][a-z0-9_-]{1,31})\b/gi)) {
