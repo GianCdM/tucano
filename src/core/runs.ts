@@ -127,6 +127,7 @@ export class Runner {
   private routing = 0
   private lanes = new Map<string, number>() // lane -> it has a run going
   private laneRun = new Map<string, string>() // lane -> the reply it's working on ("Mandar agora")
+  private approvalLanes = new Set<string>() // lanes whose latest reply sits at waiting_approval: the thread waits for the decision
   private browserTail = new Map<string, Promise<void>>() // agentId -> the tail of its browser lock
   private controllers = new Map<string, Control>()
   private paused = false // "Pausar tudo": nobody starts working until it's off
@@ -207,7 +208,10 @@ export class Runner {
       c.ctl.abort()
     }
     const msg = this.deps.db.message(messageId)
-    if (msg?.author.kind === 'agent') this.dropLane(`${msg.conversationId}:${msg.author.id}`)
+    if (msg?.author.kind === 'agent') {
+      this.approvalLanes.delete(`${msg.conversationId}:${msg.author.id}`)
+      this.dropLane(`${msg.conversationId}:${msg.author.id}`)
+    }
   }
 
   private dropLane(lane: string): void {
@@ -445,7 +449,7 @@ export class Runner {
 
   private pump(): void {
     while (this.active < MAX_CONCURRENT && this.queue.length > 0) {
-      const i = this.queue.findIndex((j) => !this.lanes.get(j.lane)) // a busy lane waits its turn; other agents go ahead
+      const i = this.queue.findIndex((j) => !this.lanes.get(j.lane) && !this.approvalLanes.has(j.lane)) // a busy lane waits its turn; other agents go ahead
       if (i === -1) break
       const job = this.queue.splice(i, 1)[0]!
       this.lanes.set(job.lane, 1)
@@ -457,6 +461,8 @@ export class Runner {
         .finally(() => {
           this.active--
           this.lanes.delete(job.lane)
+          // An approval pauses the reply but keeps its place: the lane holds until you decide.
+          if (this.deps.db.message(job.msgId)?.run?.status === 'waiting_approval') this.approvalLanes.add(job.lane)
           if (this.laneRun.get(job.lane) === job.msgId) this.laneRun.delete(job.lane)
           this.pump()
           if (this.active === 0) this.deps.onBusy?.(false)
@@ -473,10 +479,15 @@ export class Runner {
     for (const j of this.queue) {
       const n = (ahead.get(j.lane) ?? 0) + 1
       ahead.set(j.lane, n)
-      const pos = this.lanes.get(j.lane) ? n : 0 // lane idle: it's the global pool that's full
+      const pos = this.lanes.get(j.lane) || this.approvalLanes.has(j.lane) ? n : 0 // lane idle: it's the global pool that's full
       const m = this.deps.db.message(j.msgId)
       if (m?.run && m.run.queuePos !== pos) this.update(m, { run: { ...m.run, queuePos: pos } })
     }
+  }
+
+  // At boot: approvals that survived the restart hold their lane again.
+  holdApprovalLane(conversationId: string, agentId: string): void {
+    this.approvalLanes.add(`${conversationId}:${agentId}`)
   }
 
   // The agent's browser is one tab with one set of logins: the first browser
@@ -1213,6 +1224,7 @@ export class Runner {
     const { db, emit } = this.deps
     const ap = db.approval(id)
     if (!ap || ap.state !== 'pending' || !db.decideApproval(id, decision, reason)) return
+    this.approvalLanes.delete(`${ap.conversationId}:${ap.agentId}`) // the thread moves again
     const owner = db.agent(ap.agentId)
     if (always && decision === 'approved' && owner && !ap.highRisk && ap.tool !== ACCESS_REQUEST && ap.connectorId !== GITHUB && ap.connectorId !== NAVEGADOR && !owner.autoApprove?.includes(`${ap.connectorId}:${ap.tool}`)) {
       db.saveAgent({ ...owner, autoApprove: [...(owner.autoApprove ?? []), `${ap.connectorId}:${ap.tool}`] })

@@ -317,6 +317,7 @@ const runner = new Runner({
 })
 runner.setPaused(!!settings().paused)
 for (const m of staleQueued) runner.cancelQueued(m.id, 'app')
+for (const ap of db.approvals().filter((a) => a.state === 'pending')) runner.holdApprovalLane(ap.conversationId, ap.agentId)
 // Installs from before the Tuca get him at the first start after the introduction.
 void ready.then(() => {
   if (settings().onboarding?.done) ensureTuca()
