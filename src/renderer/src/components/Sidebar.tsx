@@ -208,10 +208,12 @@ export function Sidebar(): ReactNode {
 
 function ChannelItem({ id, name, unread }: { id: string; name: string; unread?: number }): ReactNode {
   const active = useStore((s) => s.view?.kind === 'conversation' && s.view.id === id)
+  const working = useStore((s) => s.messages.some((m) => m.conversationId === id && m.run?.status === 'working'))
   return (
     <button className={`nav-item ${active ? 'is-active' : ''} ${unread ? 'is-unread' : ''}`} onClick={() => navigate({ kind: 'conversation', id })}>
       <Icon name="hash" />
       <span className="nav-item__label">{name}</span>
+      {working && <span className="pulse" title={L('Trabalhando', 'Working')} />}
       {unread ? <span className="badge badge--soft">{unread}</span> : null}
     </button>
   )
