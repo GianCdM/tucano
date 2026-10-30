@@ -269,9 +269,12 @@ export function transcriptBlocks(opts: TranscriptOpts): { blocks: string[]; bloc
 }
 
 // @handles in the text that belong to the given agents, in order of appearance.
+// Handles inside code (fenced or inline) are quoted content, not a call — e.g. a prompt shown in a fenced block.
+const CODE_SPANS = /```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`/g
+
 export function mentioned(text: string, agents: Agent[]): Agent[] {
   const found: Agent[] = []
-  for (const m of text.matchAll(/(^|[^\w@])@([a-z0-9][a-z0-9_-]{1,31})\b/gi)) {
+  for (const m of text.replace(CODE_SPANS, ' ').matchAll(/(^|[^\w@])@([a-z0-9][a-z0-9_-]{1,31})\b/gi)) {
     const a = agents.find((x) => x.handle.toLowerCase() === m[2]!.toLowerCase())
     if (a && !found.includes(a)) found.push(a)
   }
