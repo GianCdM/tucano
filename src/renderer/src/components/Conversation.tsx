@@ -761,8 +761,10 @@ async function prepareImage(file: File): Promise<Attached | string> {
 const drafts = new Map<string, { text: string; images: Attached[] }>()
 
 export function Composer({ conversationId, members, placeholder }: { conversationId: string; members: Agent[]; placeholder: string }): ReactNode {
-  const [text, setText] = useState('')
-  const [images, setImages] = useState<Attached[]>([])
+  // The field starts with the conversation's draft, not empty: StrictMode (in dev) unmounts
+  // and mounts again at once, and saving an empty first render would wipe the draft.
+  const [text, setText] = useState(() => drafts.get(conversationId)?.text ?? '')
+  const [images, setImages] = useState<Attached[]>(() => drafts.get(conversationId)?.images ?? [])
   const [note, setNote] = useState('')
   const [dragging, setDragging] = useState(false)
   const picker = useRef<HTMLInputElement>(null)
@@ -787,7 +789,11 @@ export function Composer({ conversationId, members, placeholder }: { conversatio
     setImages(draft?.images ?? [])
     setNote('')
     ref.current?.focus()
-    return () => void drafts.set(conversationId, live.current)
+    return () => {
+      const { text, images } = live.current
+      if (text.trim() || images.length) drafts.set(conversationId, { text, images })
+      else drafts.delete(conversationId)
+    }
   }, [conversationId])
 
   const addFiles = async (files: File[]): Promise<void> => {
