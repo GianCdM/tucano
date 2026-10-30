@@ -227,7 +227,7 @@ function MessageRow({ message, grouped }: { message: Message; grouped: boolean }
         {message.run && <RunSteps message={message} />}
         {message.text ? (
           <div className="md">
-            <Markdown remarkPlugins={[remarkGfm]}>{highlightMentions(message.text)}</Markdown>
+            <Markdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock }}>{highlightMentions(message.text)}</Markdown>
           </div>
         ) : null}
         {attached.length > 0 && (
@@ -303,10 +303,29 @@ function RoutineMessage({ message }: { message: Message }): ReactNode {
           </div>
         )}
         <div className="md">
-          <Markdown remarkPlugins={[remarkGfm]}>{highlightMentions(message.text)}</Markdown>
+          <Markdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock }}>{highlightMentions(message.text)}</Markdown>
         </div>
       </div>
     </article>
+  )
+}
+
+// Fenced code block in a chat message, with a copy button on the top right.
+function CodeBlock({ children }: { children?: ReactNode }): ReactNode {
+  const ref = useRef<HTMLPreElement>(null)
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="md-code">
+      <pre ref={ref}>{children}</pre>
+      <button
+        className="btn btn--xs md-code__copy"
+        onClick={() =>
+          void navigator.clipboard.writeText(ref.current?.textContent ?? '').then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))
+        }
+      >
+        {copied ? L('Copiado', 'Copied') : L('Copiar', 'Copy')}
+      </button>
+    </div>
   )
 }
 
