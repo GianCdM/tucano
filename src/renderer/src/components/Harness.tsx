@@ -81,25 +81,23 @@ export function ModelPicker({ value, onChange, engines, jev }: { value: string; 
   if (!engine && !jev) return <p className="hint hint--warn">{L('Nenhum harness pronto. Veja em Configurações → Modelos.', 'No harness ready. See Settings → Models.')}</p>
   return (
     <div className="model-picker">
-      {(choices.length > 1 || jev) && (
-        <select
-          value={value === 'jev' ? 'jev' : engine}
-          onChange={(e) => {
-            setTyping(false)
-            const v = e.target.value
-            // On a plan, the harness's first model; otherwise the person picks from its list.
-            const plan = v !== 'jev' && statuses[v as EngineId].route === 'plan' ? MODELS.find((x) => x.engine === v) : undefined
-            onChange(v === 'jev' ? 'jev' : (plan?.id ?? customModel(v as EngineId, '')))
-          }}
-        >
-          {choices.map((e) => (
-            <option key={e} value={e}>
-              {ENGINES[e].label}
-            </option>
-          ))}
-          {jev && <option value="jev">TypeSafe · Jev</option>}
-        </select>
-      )}
+      <select
+        value={value === 'jev' ? 'jev' : engine}
+        onChange={(e) => {
+          setTyping(false)
+          const v = e.target.value
+          // On a plan, the harness's first model; otherwise the person picks from its list.
+          const plan = v !== 'jev' && statuses[v as EngineId].route === 'plan' ? MODELS.find((x) => x.engine === v) : undefined
+          onChange(v === 'jev' ? 'jev' : (plan?.id ?? customModel(v as EngineId, '')))
+        }}
+      >
+        {choices.map((e) => (
+          <option key={e} value={e}>
+            {ENGINES[e].label}
+          </option>
+        ))}
+        {jev && <option value="jev">TypeSafe · Jev</option>}
+      </select>
       {value !== 'jev' && engine && (
         <select
           className="grow"
