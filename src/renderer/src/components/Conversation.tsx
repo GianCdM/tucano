@@ -318,12 +318,13 @@ function CodeBlock({ children }: { children?: ReactNode }): ReactNode {
     <div className="md-code">
       <pre ref={ref}>{children}</pre>
       <button
-        className="btn btn--xs md-code__copy"
+        className="icon-btn icon-btn--sm md-code__copy"
+        title={L(copied ? 'Copiado' : 'Copiar', copied ? 'Copied' : 'Copy')}
         onClick={() =>
           void navigator.clipboard.writeText(ref.current?.textContent ?? '').then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))
         }
       >
-        {copied ? L('Copiado', 'Copied') : L('Copiar', 'Copy')}
+        <Icon name={copied ? 'check' : 'copy'} size={13} />
       </button>
     </div>
   )
@@ -447,7 +448,19 @@ function QuestionCard({ question, answered }: { question: string; answered: bool
   )
 }
 
-const highlightMentions = (text: string): string => text.replace(/(^|\s)@([a-z0-9_-]{2,32})/gi, '$1**@$2**')
+// Code (fences or inline) is quoted content: a @handle there must not be bolded — the box shows and copies the real text.
+// Same rule as mentioned() in the core (src/core/context.ts).
+const CODE_SPANS = /```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`/g
+const boldMentions = (t: string): string => t.replace(/(^|\s)@([a-z0-9_-]{2,32})/gi, '$1**@$2**')
+const highlightMentions = (text: string): string => {
+  let out = ''
+  let last = 0
+  for (const m of text.matchAll(CODE_SPANS)) {
+    out += boldMentions(text.slice(last, m.index)) + m[0]
+    last = m.index! + m[0].length
+  }
+  return out + boldMentions(text.slice(last))
+}
 
 // Now, every second while `on`: the clock of a reply at work.
 function useNow(on: boolean): number {

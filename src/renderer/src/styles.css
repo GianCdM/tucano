@@ -835,6 +835,7 @@ h3 {
   position: absolute;
   top: 6px;
   right: 6px;
+  background: var(--code-bg);
 }
 .md table {
   border-collapse: collapse;
