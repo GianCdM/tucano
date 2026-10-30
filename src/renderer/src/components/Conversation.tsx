@@ -1,4 +1,5 @@
 import { L } from '../../../shared/lang'
+import { CODE_SPANS } from '../../../shared/types'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -320,6 +321,7 @@ function CodeBlock({ children }: { children?: ReactNode }): ReactNode {
       <button
         className="icon-btn icon-btn--sm md-code__copy"
         title={L(copied ? 'Copiado' : 'Copiar', copied ? 'Copied' : 'Copy')}
+        aria-label={L(copied ? 'Copiado' : 'Copiar código', copied ? 'Copied' : 'Copy code')}
         onClick={() =>
           void navigator.clipboard.writeText(ref.current?.textContent ?? '').then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))
         }
@@ -448,9 +450,7 @@ function QuestionCard({ question, answered }: { question: string; answered: bool
   )
 }
 
-// Code (fences or inline) is quoted content: a @handle there must not be bolded — the box shows and copies the real text.
-// Same rule as mentioned() in the core (src/core/context.ts).
-const CODE_SPANS = /```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`/g
+// A @handle in code is not bolded (CODE_SPANS, the core's rule too): the box shows and copies the real text.
 const boldMentions = (t: string): string => t.replace(/(^|\s)@([a-z0-9_-]{2,32})/gi, '$1**@$2**')
 const highlightMentions = (text: string): string => {
   let out = ''
