@@ -1380,13 +1380,11 @@ export class Runner {
     const { conv, asked } = hit
     this.update(asked, { run: { ...asked.run!, status: 'done' } })
     const { workspaceName } = await this.deps.settings()
-    this.enqueue(() =>
-      this.execute(agent, conv, {
-        depth: 1,
-        work: asked.run?.work,
-        task: L(`${workspaceName} devolveu o controle do seu navegador. Continue de onde parou.`, `${workspaceName} handed your browser back. Pick up where you left off.`)
-      })
-    )
+    void this.launch(agent, conv, {
+      depth: 1,
+      work: asked.run?.work,
+      task: L(`${workspaceName} devolveu o controle do seu navegador. Continue de onde parou.`, `${workspaceName} handed your browser back. Pick up where you left off.`)
+    })
   }
 
   // An agent that mentions another agent of the conversation hands it the turn,
