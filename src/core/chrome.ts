@@ -248,9 +248,11 @@ export class ChromeBrowsers {
   private async launchTab(key: string, taken: boolean, url?: string): Promise<Tab> {
     const agentId = agentOf(key)
     const have = this.procs.get(agentId)
-    if (have && !have.headed !== !taken) {
-      // A headless Chrome can't turn into a window mid-flight: give way to one that is (rare: only when
-      // a thread starts working while the window stands for another).
+    // A headless Chrome can't turn into a window mid-flight: give way to one that is. The other way
+    // round — the window standing, an agent's tab asked for — the tab just opens on it, as any tab
+    // does; killing the Chrome here would close the window you just took over (and drop every run
+    // driving its tab).
+    if (have && !have.headed && taken) {
       this.procs.delete(agentId)
       const others = [...this.tabs].filter(([k, t]) => agentOf(k) === agentId).map(([k, t]) => ({ key: k, url: t.url }))
       for (const [k, t] of [...this.tabs]) if (agentOf(k) === agentId) (this.tabs.delete(k), t.close())
@@ -341,6 +343,15 @@ export class ChromeBrowsers {
     const current = this.tabs.get(key) ?? (await this.starting.get(key))
     if (current?.taken) return { url: current.url, title: '', shown: true }
     const proc = this.procs.get(agentId)
+    if (proc?.headed) {
+      // The window is already up (another thread of this agent): this thread's tab joins it — no
+      // relaunch, which would close the window and drop the runs driving their tabs.
+      const mine = this.tabs.get(key)
+      if (mine) (this.tabs.delete(key), mine.close())
+      const tab = await this.newTab(agentId, key, proc, true, current?.url)
+      this.onShown(key, true)
+      return { url: tab.url, title: '', shown: true }
+    }
     const others = [...this.tabs].filter(([k]) => agentOf(k) === agentId && k !== key).map(([k, t]) => ({ key: k, url: t.url }))
     for (const [k, t] of [...this.tabs]) if (agentOf(k) === agentId) (this.tabs.delete(k), t.close())
     if (proc) {
