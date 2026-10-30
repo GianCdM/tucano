@@ -294,3 +294,66 @@ describe('ask_user through the gateway', () => {
     expect(db.messages().some((m) => m.text.startsWith('Chamei'))).toBe(false)
   })
 })
+
+describe('browser handback', () => {
+  let gateway: Gateway
+
+  beforeEach(async () => {
+    gateway = new Gateway()
+    await gateway.start()
+    return () => gateway.stop()
+  })
+
+  function runnerWithGateway(): Runner {
+    claude = counted(fakeEngine('claude', { delayMs: 1 }))
+    return new Runner({
+      db,
+      engines: { claude, codex: fakeEngine('codex', { delayMs: 1 }), opencode: fakeEngine('opencode'), pi: fakeEngine('pi') },
+      settings: async () => settings,
+      emit: (e) => events.push(e),
+      workDir: mkdtempSync(join(tmpdir(), 'ad-work-')),
+      gateway
+    })
+  }
+
+  it('resumes the pending ask_user on its own when the browser is handed back', async () => {
+    const r = runnerWithGateway()
+    await r.send('c1', '@lia me pergunta o que faltar')
+    await r.idle()
+    const [asked] = agentMessages()
+    expect(asked?.run?.status).toBe('waiting_input')
+
+    // No new human message: the handback itself is the answer.
+    await r.handedBack('a1')
+    await r.idle()
+
+    expect(db.message(asked!.id)?.run?.status).toBe('done')
+    const replies = agentMessages()
+    expect(replies).toHaveLength(2)
+    expect((replies[1]!.author as { id: string }).id).toBe('a1')
+    expect(claude.turns[1]?.prompt).toContain('devolveu o controle do seu navegador')
+    expect(events.some((e) => e.type === 'message' && (e as { message?: Message }).message?.author.kind === 'agent')).toBe(true)
+  })
+
+  it('leaves the question pending while the agents are paused', async () => {
+    const r = runnerWithGateway()
+    await r.send('c1', '@lia me pergunta o que faltar')
+    await r.idle()
+    const [asked] = agentMessages()
+    r.setPaused(true)
+    await r.handedBack('a1')
+    await r.idle()
+    expect(db.message(asked!.id)?.run?.status).toBe('waiting_input')
+    expect(agentMessages()).toHaveLength(1)
+  })
+
+  it('does nothing when nothing is pending or the agent is gone', async () => {
+    const r = runnerWithGateway()
+    await r.handedBack('a1')
+    await r.idle()
+    expect(claude.turns).toHaveLength(0)
+    await r.handedBack('ghost')
+    await r.idle()
+    expect(claude.turns).toHaveLength(0)
+  })
+})

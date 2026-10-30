@@ -1242,6 +1242,35 @@ export class Runner {
     for (const ap of this.deps.db.expiredApprovals()) await this.decide(ap.id, 'expired')
   }
 
+  // The user took over the agent's browser ("Assumir") and handed it back
+  // ("Devolver" or closing the window) — exactly what the agent asked for with
+  // ask_user, so it goes on by itself instead of waiting for a message.
+  async handedBack(agentId: string): Promise<void> {
+    // Paused, nobody starts working: the question stays pending, as a message would leave it.
+    if (this.paused) return
+    const agent = this.deps.db.agent(agentId)
+    if (!agent || agent.archived) return
+    let hit: { conv: Conversation; asked: Message } | undefined // the latest pending question of this agent, any conversation
+    for (const conv of this.deps.db.conversations()) {
+      const asked = this.deps.db
+        .recentMessages(conv.id, 50)
+        .reverse()
+        .find((m) => m.author.kind === 'agent' && m.author.id === agentId && m.run?.status === 'waiting_input')
+      if (asked && (!hit || asked.at > hit.asked.at)) hit = { conv, asked }
+    }
+    if (!hit) return
+    const { conv, asked } = hit
+    this.update(asked, { run: { ...asked.run!, status: 'done' } })
+    const { workspaceName } = await this.deps.settings()
+    this.enqueue(() =>
+      this.execute(agent, conv, {
+        depth: 1,
+        work: asked.run?.work,
+        task: L(`${workspaceName} devolveu o controle do seu navegador. Continue de onde parou.`, `${workspaceName} handed your browser back. Pick up where you left off.`)
+      })
+    )
+  }
+
   // An agent that mentions another agent of the conversation hands it the turn,
   // up to MAX_DEPTH replies in a row without a human message in between.
   // Whether the conversation goes on with another agent.
