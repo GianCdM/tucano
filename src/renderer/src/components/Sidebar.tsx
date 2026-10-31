@@ -235,14 +235,15 @@ function DmItem({ id, name, color, unread }: { id: string; name: string; color: 
 function AgentItem({ id }: { id: string }): ReactNode {
   const agent = useStore((s) => agentById(s, id))
   const active = useStore((s) => s.view?.kind === 'agent' && s.view.id === id)
-  const working = useStore((s) => s.messages.some((m) => m.author.kind === 'agent' && m.author.id === id && m.run?.status === 'working'))
+  // The agent list is configuration: working shows on the thread (DM, channel),
+  // never here — an agent busy in a channel would glow next to an idle DM.
   if (!agent) return null
   const pct = agent.limit > 0 ? agent.used / agent.limit : 1
   return (
     <button className={`nav-item ${active ? 'is-active' : ''}`} onClick={() => navigate({ kind: 'agent', id })}>
-      <AgentAvatar agent={agent} size={18} busy={working} />
+      <AgentAvatar agent={agent} size={18} />
       <span className="nav-item__label">{agent.name}</span>
-      {working ? <span className="pulse" title={L('Trabalhando', 'Working')} /> : <span className="nav-item__meta">{agent.role}</span>}
+      <span className="nav-item__meta">{agent.role}</span>
       {agent.computer && agent.computerKind === 'mac' && (
         <span className="nav-item__mac" title={L('Roda no seu computador', 'Runs on your computer')}>
           <Icon name="laptop" size={13} />
